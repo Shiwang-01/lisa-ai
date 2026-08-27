@@ -25,6 +25,7 @@ from lisa.audit_log import (
     OVERRIDE_REASONS,
     DEFAULT_USER_ROLE
 )
+from lisa.governance import get_governance_summary
 
 st.set_page_config(
     page_title="LISA.ai — ED Sequencing Prototype",
@@ -47,17 +48,18 @@ st.warning(
     icon="⚠️"
 )
 
-st.markdown("---")
+tab_ops, tab_gov = st.tabs(["📊 Operations & Queue Simulation", "🛡️ Privacy, Safety & Governance"])
 
-# ---------------------------------------------------------
-# Operational Mode Toggle (Milestone 6A)
-# ---------------------------------------------------------
-selected_mode_label = st.radio(
-    "**Select Operational Mode:**",
-    options=["Normal (20 Patients)", "Surge 3× (60 Patients)"],
-    index=0,
-    horizontal=True
-)
+with tab_ops:
+    # ---------------------------------------------------------
+    # Operational Mode Toggle (Milestone 6A)
+    # ---------------------------------------------------------
+    selected_mode_label = st.radio(
+        "**Select Operational Mode:**",
+        options=["Normal (20 Patients)", "Surge 3× (60 Patients)"],
+        index=0,
+        horizontal=True
+    )
 
 mode_code = MODE_SURGE_3X if "Surge" in selected_mode_label else MODE_NORMAL
 mode_context = get_operational_mode(mode_code)
@@ -830,3 +832,118 @@ if events:
             st.json(e)
 else:
     st.info("No clinician actions logged in this session yet. Use the Patient Inspector to accept, escalate, or override recommendations.")
+
+# ---------------------------------------------------------
+# Tab 2: Privacy, Safety & Governance Specification (Milestone 8)
+# ---------------------------------------------------------
+with tab_gov:
+    st.markdown("## 🛡️ Privacy, Safety & Governance Specification")
+    st.info(
+        "📋 **Governance Framework:** This panel documents the safety architecture, implemented prototype safeguards, "
+        "production requirements, data minimization standards, and anti-bias invariants governing LISA.ai.  \n"
+        "_Prototype simulation only — not for clinical use._"
+    )
+
+    gov = get_governance_summary()
+
+    # 1. Clinical Safety Positioning
+    st.markdown("### 1. 🏥 Clinical Safety Positioning")
+    st.markdown(f"**{gov['clinical_safety_position']['statement']}**")
+    for principle in gov["clinical_safety_position"]["principles"]:
+        st.markdown(f"- {principle}")
+
+    st.markdown("---")
+
+    # 2. Implemented Safeguards vs Production Requirements
+    st.markdown("### 2. ⚖️ Implemented Safeguards vs Production Requirements")
+    st.caption("Transparent disclosure of prototype engineering controls versus full hospital production requirements.")
+
+    matrix_df = pd.DataFrame(gov["implemented_vs_required_matrix"])
+    matrix_df.columns = ["Domain", "Prototype Implementation", "Prototype Status", "Production Requirement", "Production Status"]
+    st.dataframe(matrix_df, use_container_width=True, hide_index=True)
+
+    st.markdown("---")
+
+    # 3. Data Minimization & Synthetic Data Scope
+    st.markdown("### 3. 🔒 Data Minimization & Synthetic Scope")
+    for rule in gov["data_minimization_rules"]:
+        st.markdown(f"- {rule}")
+
+    st.markdown("---")
+
+    # 4. Excluded Prioritization Features (Anti-Bias Invariant)
+    st.markdown("### 4. 🚫 Excluded Prioritization Features (Anti-Bias Invariant)")
+    st.markdown(
+        "To prevent socioeconomic, financial, and institutional bias, the following attributes are **strictly excluded** "
+        "from clinical protocol rules, Risk-of-Wait scoring, queue sequencing, and bed allocation:"
+    )
+
+    ex_col1, ex_col2 = st.columns(2)
+    with ex_col1:
+        st.markdown("**Financial & Socioeconomic Demographics:**")
+        st.markdown("- Insurance status / Payer category")
+        st.markdown("- Payment ability / Deposit status")
+        st.markdown("- Socioeconomic class")
+        st.markdown("- Caste & Religion")
+    with ex_col2:
+        st.markdown("**Institutional & Commercial Influences:**")
+        st.markdown("- VIP status / Executive relationships")
+        st.markdown("- Donation history")
+        st.markdown("- Hospital revenue / Billing tier")
+        st.markdown("- Room category preference")
+
+    st.markdown("---")
+
+    # 5. Human Accountability Chain
+    st.markdown("### 5. 👤 Human-in-the-Loop Accountability")
+    st.markdown(
+        "LISA does not make autonomous decisions. The human clinician retains full authority and accountability at every stage:"
+    )
+    for step in gov["human_accountability_chain"]:
+        st.markdown(f"- {step}")
+
+    st.markdown("---")
+
+    # 6. Auditability & Version Governance
+    st.markdown("### 6. 📜 Auditability & Engine Versions")
+    st.markdown(
+        "Every clinical action is captured in an append-only audit trail with active model and rule version stamping. "
+        "_Prototype audit log is session-scoped; production deployment requires durable, tamper-evident WORM storage._"
+    )
+
+    versions_df = pd.DataFrame(gov["model_and_rule_versions"])
+    versions_df.columns = ["Component", "Engine Type", "Version Tag", "Scope & Responsibility"]
+    st.dataframe(versions_df, use_container_width=True, hide_index=True)
+
+    st.markdown("---")
+
+    # 7. Subgroup Fairness Monitoring Plan
+    st.markdown("### 7. 🔍 Subgroup Fairness Monitoring Plan")
+    st.markdown(
+        "LISA does not claim to be 'unbiased'. Production validation requires continuous performance disparity monitoring across:"
+    )
+    for dim in gov["fairness_monitoring_dimensions"]:
+        st.markdown(f"- {dim}")
+
+    st.markdown("---")
+
+    # 8. Regulatory Design Assumptions
+    st.markdown("### 8. 🌐 Regulatory Design Assumptions")
+    reg = gov["regulatory_design_assumptions"]
+
+    r_col1, r_col2 = st.columns(2)
+    with r_col1:
+        st.markdown("#### 🇮🇳 India Deployment Focus")
+        st.markdown(f"**Framework Reference:** {reg['india_focus']['frameworks']}")
+        st.caption(f"⚠️ {reg['india_focus']['disclaimer']}")
+    with r_col2:
+        st.markdown("#### 🌍 International Expansion")
+        st.markdown(f"**Framework Reference:** {reg['international_expansion']['frameworks']}")
+        st.caption(f"⚠️ {reg['international_expansion']['disclaimer']}")
+
+    st.markdown("---")
+
+    # 9. End-to-End Data Flow
+    st.markdown("### 9. 🔄 End-to-End Decision Flow")
+    st.code(" → ".join(gov["data_flow_steps"]), language="text")
+    st.caption("🔒 _Synthetic environment only — no real patient data is ingested, processed, or transmitted._")
