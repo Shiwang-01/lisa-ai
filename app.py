@@ -14,6 +14,17 @@ from lisa.surge_simulator import (
     MODE_SURGE_3X
 )
 from lisa.comparison_metrics import compare_queue_policies
+from lisa.audit_log import (
+    AuditTrailManager,
+    create_audit_event,
+    validate_clinician_override,
+    calculate_escalated_tier,
+    ACTION_ACCEPT,
+    ACTION_OVERRIDE,
+    ACTION_ESCALATE,
+    OVERRIDE_REASONS,
+    DEFAULT_USER_ROLE
+)
 
 st.set_page_config(
     page_title="LISA.ai — ED Sequencing Prototype",
@@ -21,6 +32,9 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+if "audit_manager" not in st.session_state:
+    st.session_state.audit_manager = AuditTrailManager()
 
 # ---------------------------------------------------------
 # Header & Disclaimer
@@ -159,10 +173,26 @@ st.markdown("---")
 
 queue_display_data = []
 for p in ranked_queue:
+    token = p["patient_token"]
+    latest_action = st.session_state.audit_manager.get_latest_action_for_patient(token)
+    if latest_action:
+        act_type = latest_action["action"]
+        if act_type == ACTION_ACCEPT:
+            clin_action_str = "✅ Accepted"
+        elif act_type == ACTION_OVERRIDE:
+            clin_action_str = f"⚠️ Override → {latest_action['clinician_selected_tier']}"
+        elif act_type == ACTION_ESCALATE:
+            clin_action_str = f"⚡ Escalated → {latest_action['clinician_selected_tier']}"
+        else:
+            clin_action_str = "—"
+    else:
+        clin_action_str = "—"
+
     queue_display_data.append({
         "Rank": p["priority_rank"],
-        "Patient": p["patient_token"],
+        "Patient": token,
         "Queue Tier": p["queue_tier"],
+        "Clinician Action": clin_action_str,
         "Sequence Score": p["sequence_score"],
         "Current Risk": p["current_risk"],
         "60-min Risk": p["risk_60_min"],
@@ -642,3 +672,161 @@ with st.expander("🛠️ Technical Resource Compatibility Details"):
     st.write(f"- **Acceptable Bed Types:** `{', '.join(patient_alloc['acceptable_bed_types'])}`")
     st.write(f"- **Incompatible Bed Types:** `{', '.join(patient_alloc['incompatible_bed_types'])}`")
     st.write(f"- **Resource Compatibility Codes:** `{', '.join(patient_alloc['allocation_codes'])}`")
+
+# ---------------------------------------------------------
+# Clinician Actions Section (Milestone 7)
+# ---------------------------------------------------------
+st.markdown("---")
+st.markdown("### 🎯 Clinician Action")
+st.caption(f"👤 Acting as: `{DEFAULT_USER_ROLE}` | _Human-in-the-loop decision support._")
+
+latest_p_action = st.session_state.audit_manager.get_latest_action_for_patient(selected_token)
+
+ca_col1, ca_col2 = st.columns(2)
+with ca_col1:
+    st.markdown(f"**System Queue Recommendation:** `{patient_ranked['queue_tier']}`")
+with ca_col2:
+    if latest_p_action:
+        act_type = latest_p_action["action"]
+        if act_type == ACTION_ACCEPT:
+            st.info(f"**Current Clinician State:** ✅ Recommendation Accepted (`{latest_p_action['clinician_selected_tier']}`)")
+        elif act_type == ACTION_OVERRIDE:
+            st.warning(f"**Current Clinician State:** ⚠️ Override Active (`{latest_p_action['clinician_selected_tier']}`) — Reason: `{latest_p_action['override_reason']}`")
+        elif act_type == ACTION_ESCALATE:
+            st.warning(f"**Current Clinician State:** ⚡ Escalation Active (`{latest_p_action['clinician_selected_tier']}`)")
+    else:
+        st.write("**Current Clinician State:** _No override (system recommendation active)_")
+
+action_btn_col1, action_btn_col2, action_btn_col3 = st.columns([1, 1, 2])
+
+with action_btn_col1:
+    if st.button("✅ Accept Recommendation", key=f"accept_{selected_token}", use_container_width=True):
+        evt = create_audit_event(
+            patient_token=selected_token,
+            action=ACTION_ACCEPT,
+            system_ranked_patient=patient_ranked,
+            system_allocated_patient=patient_alloc,
+            operational_mode=mode_code,
+            user_role=DEFAULT_USER_ROLE
+        )
+        st.session_state.audit_manager.log_event(evt)
+        st.success("Recommendation accepted and recorded in audit log.")
+        st.rerun()
+
+with action_btn_col2:
+    if st.button("⚡ Escalate Urgency", key=f"escalate_{selected_token}", use_container_width=True):
+        current_clin_tier = latest_p_action["clinician_selected_tier"] if latest_p_action else None
+        evt = create_audit_event(
+            patient_token=selected_token,
+            action=ACTION_ESCALATE,
+            system_ranked_patient=patient_ranked,
+            system_allocated_patient=patient_alloc,
+            operational_mode=mode_code,
+            user_role=DEFAULT_USER_ROLE,
+            current_active_tier=current_clin_tier
+        )
+        st.session_state.audit_manager.log_event(evt)
+        st.success(f"Urgency escalated to {evt['clinician_selected_tier']} and recorded in audit log.")
+        st.rerun()
+
+# Override Expander / Form
+with st.expander("⚠️ Clinician Override Form", expanded=False):
+    st.markdown("**Override Operational Queue Tier**")
+    st.caption("Requires explicit clinical reasoning. Overrides cannot violate active safety floors.")
+
+    ov_tier = st.selectbox(
+        "Target Operational Tier:",
+        options=["Tier A", "Tier B", "Tier C", "Tier D", "Tier E"],
+        index=["Tier A", "Tier B", "Tier C", "Tier D", "Tier E"].index(patient_ranked["queue_tier_code"]) if patient_ranked["queue_tier_code"] in ["Tier A", "Tier B", "Tier C", "Tier D", "Tier E"] else 0,
+        key=f"ov_tier_{selected_token}"
+    )
+
+    ov_reason = st.selectbox(
+        "Override Reason (Required):",
+        options=[""] + OVERRIDE_REASONS,
+        format_func=lambda x: "Select a reason..." if x == "" else x,
+        key=f"ov_reason_{selected_token}"
+    )
+
+    ov_note = st.text_area(
+        "Clinician Note (Optional):",
+        placeholder="Document clinical observations or rationale...",
+        key=f"ov_note_{selected_token}"
+    )
+
+    if st.button("💾 Save Override", key=f"save_ov_{selected_token}"):
+        if not ov_reason:
+            st.error("Override requires an explicit clinical reason.")
+        else:
+            eff_floor = patient_ranked.get("effective_safety_floor")
+            is_valid, err_msg = validate_clinician_override(eff_floor, ov_tier, ov_reason)
+            if not is_valid:
+                st.error(f"❌ {err_msg}")
+                st.markdown(f"""
+- **Initial Clinician Triage:** Level {patient_ranked.get('initial_triage_level') or 'None'}
+- **Protocol Guardrail:** Level {patient_ranked.get('protocol_floor_level') or 'None'}
+- **Effective Safety Floor:** Level {eff_floor or 'None'}
+""")
+            else:
+                evt = create_audit_event(
+                    patient_token=selected_token,
+                    action=ACTION_OVERRIDE,
+                    system_ranked_patient=patient_ranked,
+                    system_allocated_patient=patient_alloc,
+                    operational_mode=mode_code,
+                    user_role=DEFAULT_USER_ROLE,
+                    clinician_selected_tier=ov_tier,
+                    override_reason=ov_reason,
+                    override_note=ov_note
+                )
+                st.session_state.audit_manager.log_event(evt)
+                st.success(f"Override to {ov_tier} saved and recorded in audit log.")
+                st.rerun()
+
+# ---------------------------------------------------------
+# Clinical Audit Trail Section (Milestone 7)
+# ---------------------------------------------------------
+st.markdown("---")
+st.markdown("### 📜 Clinical Audit Trail")
+st.caption("Demo audit log — session-scoped append-only event record.")
+
+col_audit_info, col_audit_reset = st.columns([3, 1])
+with col_audit_info:
+    event_count = st.session_state.audit_manager.count()
+    st.write(f"Total Logged Actions in Session: **{event_count}**")
+with col_audit_reset:
+    if st.button("🔄 Reset Demo Actions", key="reset_demo_actions", use_container_width=True):
+        st.session_state.audit_manager.clear()
+        st.success("Session audit trail and clinician actions reset.")
+        st.rerun()
+
+events = st.session_state.audit_manager.get_events()
+if events:
+    audit_rows = []
+    for e in reversed(events):  # Newest first in display
+        audit_rows.append({
+            "Timestamp": e["timestamp"],
+            "Event ID": e["event_id"][:8] + "...",
+            "User": e["user_role"],
+            "Patient": e["patient_token"],
+            "Mode": e["operational_mode"],
+            "Action": e["action"],
+            "System Tier": e["system_queue_tier"],
+            "Clinician Tier": e["clinician_selected_tier"],
+            "Sequence Score": e["system_sequence_score"],
+            "Override Reason": e["override_reason"] or "—",
+            "Model Version": e["model_version"],
+            "Rule Version": e["rule_version"]
+        })
+    st.dataframe(
+        pd.DataFrame(audit_rows),
+        use_container_width=True,
+        hide_index=True
+    )
+
+    with st.expander("🔍 Inspect Full Audit Event Payloads", expanded=False):
+        for i, e in enumerate(reversed(events), start=1):
+            st.markdown(f"**Event #{event_count - i + 1} — {e['patient_token']} ({e['action']}) at {e['timestamp']}**")
+            st.json(e)
+else:
+    st.info("No clinician actions logged in this session yet. Use the Patient Inspector to accept, escalate, or override recommendations.")
