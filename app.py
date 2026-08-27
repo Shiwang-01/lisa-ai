@@ -1,7 +1,10 @@
 import os
 import pandas as pd
+import plotly.graph_objects as go
 import streamlit as st
+
 from lisa.protocol_floor import evaluate_protocol_floor
+from lisa.risk_engine import evaluate_risk_of_wait, RISK_BREACH_THRESHOLD
 
 st.set_page_config(
     page_title="LISA.ai — ED Sequencing Prototype",
@@ -24,7 +27,7 @@ st.warning(
 st.markdown("---")
 
 # ---------------------------------------------------------
-# Data Loading & Guardrail Evaluation
+# Data Loading, Guardrails & Risk-of-Wait Evaluation
 # ---------------------------------------------------------
 DATA_PATH = os.path.join(os.path.dirname(__file__), "data", "seed_patients.csv")
 
@@ -39,20 +42,38 @@ except Exception as e:
     st.error(f"Error loading dataset from {DATA_PATH}: {e}")
     st.stop()
 
-# Evaluate Protocol Floors for entire cohort
+# Evaluate Protocol Floors and Risk-of-Wait for entire cohort
 floor_results = []
+risk_results = []
 display_floor_labels = []
+current_risk_col = []
+risk_60_col = []
+confidence_col = []
+reassess_col = []
 
 for _, row in patients_df.iterrows():
-    res = evaluate_protocol_floor(row)
-    floor_results.append(res)
-    if res["triggered"]:
-        display_floor_labels.append(f"Level {res['floor_level']}")
+    f_res = evaluate_protocol_floor(row)
+    r_res = evaluate_risk_of_wait(row, f_res)
+
+    floor_results.append(f_res)
+    risk_results.append(r_res)
+
+    if f_res["triggered"]:
+        display_floor_labels.append(f"Level {f_res['floor_level']}")
     else:
         display_floor_labels.append("No Hard Floor")
 
+    current_risk_col.append(r_res["current_risk"])
+    risk_60_col.append(r_res["risk_60_min"])
+    confidence_col.append(f"{r_res['confidence']}%")
+    reassess_col.append(f"{r_res['recheck_due_min']} min")
+
 patients_display_df = patients_df.copy()
-patients_display_df.insert(1, "protocol_floor", display_floor_labels)
+patients_display_df.insert(1, "Protocol Floor", display_floor_labels)
+patients_display_df.insert(2, "Current Risk", current_risk_col)
+patients_display_df.insert(3, "60-min Risk", risk_60_col)
+patients_display_df.insert(4, "Confidence", confidence_col)
+patients_display_df.insert(5, "Reassess In", reassess_col)
 
 # ---------------------------------------------------------
 # Summary Metrics
@@ -79,7 +100,7 @@ with col4:
 st.markdown("---")
 
 # ---------------------------------------------------------
-# Patient Cohort Data Table
+# Patient Cohort Data Table (Original Ordering Maintained)
 # ---------------------------------------------------------
 st.markdown("### 📋 Waiting ED Cohort")
 st.dataframe(
@@ -108,6 +129,7 @@ selected_token = selected_option.split(" — ")[0]
 selected_idx = patient_tokens.index(selected_token)
 patient = patients_df.iloc[selected_idx]
 patient_floor = floor_results[selected_idx]
+patient_risk = risk_results[selected_idx]
 
 # Display patient details in structured cards/columns
 st.markdown(f"#### Patient Record: **{patient['patient_token']}**")
@@ -183,3 +205,124 @@ else:
         "_This does NOT mean the patient is safe or low risk. Further risk-of-wait assessment "
         "will be performed by later modules._"
     )
+# Risk of Waiting Section (Milestone 3)
+# ---------------------------------------------------------
+st.markdown("---")
+st.markdown("### ⏱️ Risk of Waiting")
+
+has_hard_floor = patient_floor["triggered"] and patient_floor["floor_level"] in [1, 2]
+
+# Protocol Floor Priority Banner over Breach Clock
+if has_hard_floor:
+    st.error(
+        f"🚨 **Protocol Floor Active (Level {patient_floor['floor_level']})** — "
+        f"Hard safety guardrail takes precedence over waiting projections. "
+        f"**Reassessment Due: {patient_risk['recheck_due_min']} min**",
+        icon="🚨"
+    )
+
+# Risk trajectory scores
+row_col1, row_col2, row_col3, row_col4 = st.columns(4)
+row_col1.metric("Current Risk", f"{patient_risk['current_risk']} / 100")
+row_col2.metric("30 min Wait", f"{patient_risk['risk_30_min']} / 100")
+row_col3.metric("60 min Wait", f"{patient_risk['risk_60_min']} / 100")
+row_col4.metric("120 min Wait", f"{patient_risk['risk_120_min']} / 100")
+
+meta_col1, meta_col2, meta_col3, meta_col4 = st.columns(4)
+
+meta_col1.metric("Risk Band", patient_risk["risk_band"])
+meta_col2.metric("Confidence", f"{patient_risk['confidence']}%")
+
+# Risk Breach Clock display logic: Protocol floor takes visual precedence
+if has_hard_floor and patient_risk["time_to_breach_min"] != 0:
+    meta_col3.metric("Risk Breach Clock", "Secondary Metric")
+    meta_col3.caption("Protocol floor already requires urgent reassessment")
+elif patient_risk["time_to_breach_min"] == 0:
+    meta_col3.metric("Risk Breach Clock", "⚠️ Breached (0 min)")
+    meta_col3.caption("Already at/above breach threshold")
+elif patient_risk["time_to_breach_min"] is not None:
+    meta_col3.metric("Risk Breach Clock", f"~{patient_risk['time_to_breach_min']} min")
+    meta_col3.caption("Estimated threshold breach")
+else:
+    meta_col3.metric("Risk Breach Clock", ">120 min")
+    meta_col3.caption("No breach in 2h horizon")
+
+meta_col4.metric("Reassessment Due", f"{patient_risk['recheck_due_min']} min")
+
+st.caption("⚠️ **Safety Notice:** Risk Breach Clock is a simulation threshold heuristic, NOT a safe-wait recommendation. Always adhere to Reassessment Due deadlines.")
+
+# Plotly Risk-of-Wait Line Chart
+fig = go.Figure()
+
+time_points = ["Now", "30 min", "60 min", "120 min"]
+risk_points = [
+    patient_risk["current_risk"],
+    patient_risk["risk_30_min"],
+    patient_risk["risk_60_min"],
+    patient_risk["risk_120_min"]
+]
+
+fig.add_trace(go.Scatter(
+    x=time_points,
+    y=risk_points,
+    mode="lines+markers+text",
+    text=[str(r) for r in risk_points],
+    textposition="top center",
+    line=dict(color="#d9534f" if patient_risk["current_risk"] >= 50 else "#f0ad4e", width=3),
+    marker=dict(size=9),
+    name="Projected Risk of Wait"
+))
+
+# Breach threshold reference line
+fig.add_hline(
+    y=RISK_BREACH_THRESHOLD,
+    line_dash="dash",
+    line_color="#c9302c",
+    annotation_text=f"Breach Threshold ({RISK_BREACH_THRESHOLD})",
+    annotation_position="bottom right"
+)
+
+fig.update_layout(
+    title="Simulated Risk-of-Wait Trajectory",
+    xaxis_title="Simulated Waiting Horizon",
+    yaxis_title="Risk-of-Wait Score (0–100)",
+    yaxis=dict(range=[0, 105]),
+    height=340,
+    margin=dict(l=40, r=40, t=50, b=40),
+)
+
+st.plotly_chart(fig, use_container_width=True)
+st.caption("ℹ️ _Simulation heuristic — not a clinical prediction._")
+
+# Human-Readable Explanations: Why this score?
+st.markdown("#### 💡 Why this score?")
+
+why_col1, why_col2 = st.columns(2)
+
+with why_col1:
+    st.markdown("**Contributing Risk Factors:**")
+    if patient_risk["risk_factors"]:
+        for factor in patient_risk["risk_factors"]:
+            st.markdown(f"- {factor}")
+    else:
+        st.write("No major physiological or clinical risk red flags detected.")
+
+with why_col2:
+    st.markdown("**Uncertainty & Data Reliability Factors:**")
+    if patient_risk["uncertainty_factors"]:
+        for u_factor in patient_risk["uncertainty_factors"]:
+            st.markdown(f"- ⚠️ {u_factor}")
+    else:
+        st.write("Complete vital signs and prior medical records available.")
+
+# Technical & Debug Details (Expandable)
+with st.expander("🛠️ Technical simulation details & explanation codes"):
+    if has_hard_floor and patient_risk["time_to_breach_min"] is not None and patient_risk["time_to_breach_min"] > 0:
+        st.info(
+            f"ℹ️ **Model threshold estimate:** ~{patient_risk['time_to_breach_min']} min  \n"
+            f"_Secondary metric only — protocol floor active (Level {patient_floor['floor_level']}) "
+            f"already requires urgent reassessment within {patient_risk['recheck_due_min']} min._"
+        )
+    st.write(f"- **Deterioration Slope:** {patient_risk['deterioration_slope']} pts / 30 min")
+    st.write(f"- **Machine Explanation Codes:** `{', '.join(patient_risk['explanation_codes'])}`")
+    st.write(f"- **Breach Threshold Set Point:** {RISK_BREACH_THRESHOLD}")
