@@ -6,6 +6,7 @@ import streamlit as st
 from lisa.protocol_floor import evaluate_protocol_floor
 from lisa.risk_engine import evaluate_risk_of_wait, RISK_BREACH_THRESHOLD
 from lisa.sequencer import rank_waiting_queue
+from lisa.allocator import load_beds_inventory, allocate_available_beds, STATUS_ALLOCATED
 
 st.set_page_config(
     page_title="LISA.ai — ED Sequencing Prototype",
@@ -100,8 +101,30 @@ with col4:
 
 st.markdown("---")
 
+# ---------------------------------------------------------
+# Simulated Bed Capacity Summary (Milestone 5)
+# ---------------------------------------------------------
+beds_df = load_beds_inventory()
+total_beds = len(beds_df)
+resus_beds = int((beds_df["bed_type"] == "Resus").sum())
+monitored_beds = int((beds_df["bed_type"] == "Monitored").sum())
+general_beds = int((beds_df["bed_type"] == "General").sum())
+fast_track_beds = int((beds_df["bed_type"] == "Fast-track").sum())
+
+b_col1, b_col2, b_col3, b_col4, b_col5 = st.columns(5)
+b_col1.metric("🛏️ Available Beds", total_beds)
+b_col2.metric("🚨 Resus", resus_beds)
+b_col3.metric("📈 Monitored", monitored_beds)
+b_col4.metric("🩺 General", general_beds)
+b_col5.metric("⚡ Fast-track", fast_track_beds)
+
+st.markdown("---")
+
 # Evaluate Queue Sequencing for entire cohort (Milestone 4)
 ranked_queue = rank_waiting_queue(patients_df)
+
+# Evaluate Capacity-Aware Bed Allocation (Milestone 5)
+allocation_results = allocate_available_beds(ranked_queue, beds_df)
 
 queue_display_data = []
 for p in ranked_queue:
@@ -131,6 +154,43 @@ st.caption("⚠️ _Simulation recommendation only — clinician remains respons
 
 st.dataframe(
     ranked_queue_df,
+    use_container_width=True,
+    hide_index=True
+)
+
+st.markdown("---")
+
+# ---------------------------------------------------------
+# Recommended Resource Allocation (Milestone 5)
+# ---------------------------------------------------------
+st.markdown("### 🛏️ Recommended Resource Allocation")
+st.markdown("**Capacity-aware simulation** using queue priority and resource compatibility.")
+st.caption("⚠️ _Allocation recommendations are simulated operational support only. Final placement remains a clinician decision._")
+
+alloc_display_df = pd.DataFrame(allocation_results["allocated_beds"])
+alloc_display_df.columns = ["Bed", "Type", "Recommended Patient", "Rank", "Score", "Queue Tier", "Why"]
+st.dataframe(
+    alloc_display_df,
+    use_container_width=True,
+    hide_index=True
+)
+
+st.markdown("#### ⏳ Patients Awaiting Capacity")
+st.caption("Simulation queue awaiting available compatible space or scheduled reassessment.")
+
+waiting_display_data = []
+for wp in allocation_results["waiting_patients"]:
+    waiting_display_data.append({
+        "Patient": wp["patient_token"],
+        "Rank": f"#{wp['priority_rank']}",
+        "Queue Tier": wp["queue_tier"],
+        "Current Risk": wp["current_risk"],
+        "Reassess In": f"{wp['recheck_due_min']} min",
+        "Allocation Status": wp["allocation_status"]
+    })
+waiting_display_df = pd.DataFrame(waiting_display_data)
+st.dataframe(
+    waiting_display_df,
     use_container_width=True,
     hide_index=True
 )
@@ -389,3 +449,40 @@ with st.expander("🛠️ Technical Sequencing Details & Machine Codes"):
     st.write(f"- **Machine Sequencing Codes:** `{', '.join(patient_ranked['sequence_codes'])}`")
     st.write(f"- **Arrival Elapsed Time:** {patient_ranked['arrival_minutes_ago']} min")
     st.write(f"- **Sequence Score Formula:** `30% Current Risk + 30% 60m Risk + 15% Breach Urgency + 10% Reassess Urgency + 10% Uncertainty + 5% Wait Time`")
+
+# ---------------------------------------------------------
+# Resource Recommendation Section (Milestone 5)
+# ---------------------------------------------------------
+st.markdown("---")
+st.markdown("### 🛏️ Resource Recommendation")
+
+# Lookup selected patient in allocation_results
+patient_alloc = next(p for p in allocation_results["patient_allocations"] if p["patient_token"] == selected_token)
+
+r_col1, r_col2, r_col3 = st.columns(3)
+
+if patient_alloc["allocation_status"] == STATUS_ALLOCATED:
+    r_col1.metric("Allocation Status", "✅ Allocated")
+    r_col2.metric("Recommended Bed", f"{patient_alloc['bed_id']} — {patient_alloc['bed_type']}")
+    r_col3.metric("Minimum Resource Need", patient_alloc["minimum_resource_level"])
+
+    st.success(f"**Operational Placement:** {patient_alloc['allocation_reason']}")
+    st.markdown("#### 🔍 Clinical Compatibility Rationale:")
+    for reason in patient_alloc["allocation_reasons"]:
+        st.markdown(f"- {reason}")
+else:
+    r_col1.metric("Allocation Status", f"⏳ {patient_alloc['allocation_status']}")
+    r_col2.metric("Recommended Bed Types", " / ".join(patient_alloc["preferred_bed_types"]))
+    r_col3.metric("Reassessment Deadline", f"{patient_alloc['recheck_due_min']} min")
+
+    st.warning(f"**Operational Status:** {patient_alloc['allocation_reason']}")
+    st.markdown("#### 🔍 Clinical Compatibility Profile:")
+    for reason in patient_alloc["allocation_reasons"]:
+        st.markdown(f"- {reason}")
+    st.caption("⚠️ _Unallocated status does NOT imply waiting is safe. Mandatory clinical reassessment deadline remains active._")
+
+with st.expander("🛠️ Technical Resource Compatibility Details"):
+    st.write(f"- **Preferred Bed Types:** `{', '.join(patient_alloc['preferred_bed_types'])}`")
+    st.write(f"- **Acceptable Bed Types:** `{', '.join(patient_alloc['acceptable_bed_types'])}`")
+    st.write(f"- **Incompatible Bed Types:** `{', '.join(patient_alloc['incompatible_bed_types'])}`")
+    st.write(f"- **Resource Compatibility Codes:** `{', '.join(patient_alloc['allocation_codes'])}`")

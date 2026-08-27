@@ -210,8 +210,8 @@ def test_ranking_independent_of_token():
         "prior_record_available": "Yes",
         "pregnancy_status": "Not Applicable",
         "arrival_minutes_ago": 45,
-        "case_notes": "Hypotensive febrile sepsis concern",
-        "resource_need": "Sepsis workup"
+        "case_notes": "Hypotensive and febrile with altered mental status",
+        "resource_need": "IV fluids, blood cultures, broad spectrum workup"
     }
     p2 = {
         "patient_token": "AAA_TOKEN",

@@ -1,0 +1,9 @@
+bed_id,bed_type,status,capabilities,notes
+B01,Resus,Available,"Full resuscitation and advanced airway monitoring equipment","Designated emergency resuscitation space"
+B02,Monitored,Available,"Continuous telemetry, pulse oximetry, automated BP cycling","High-acuity continuous observation bed"
+B03,Monitored,Available,"Continuous telemetry, pulse oximetry, automated BP cycling","High-acuity continuous observation bed"
+B04,General,Available,"Standard acute assessment stretcher with point-of-care access","Acute care general examination space"
+B05,General,Available,"Standard acute assessment stretcher with point-of-care access","Acute care general examination space"
+B06,General,Available,"Standard acute assessment stretcher with point-of-care access","Acute care general examination space"
+B07,Fast-track,Available,"Ambulatory cubicle for minor injuries and low-complexity procedures","Low-acuity fast-track care space"
+B08,Fast-track,Available,"Ambulatory cubicle for minor injuries and low-complexity procedures","Low-acuity fast-track care space"

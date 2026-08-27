@@ -301,11 +301,11 @@ def evaluate_risk_of_wait(
             risk_factors.append("Diabetes history documented")
         risk_factors.append("Continued waiting produces increasing simulated risk")
 
-    # 7. Acute abdomen
+    # 7. Abdominal pain with worsening symptoms
     if "abdominal pain" in combined_text and ("rebound" in combined_text or "worsening" in combined_text):
         current_risk_acc += 14
         explanation_codes.append("RW-SYMPTOM")
-        risk_factors.append("Progressive acute abdominal presentation")
+        risk_factors.append("Abdominal pain with worsening symptoms and fever documented")
 
     # 8. Severe headache
     if any(h in combined_text for h in ["thunderclap", "severe headache", "worst headache"]):

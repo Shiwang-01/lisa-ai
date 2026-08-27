@@ -349,7 +349,8 @@ def rank_waiting_queue(cohort_df: pd.DataFrame) -> List[Dict[str, Any]]:
         except (ValueError, TypeError):
             arr_min = 0
 
-        patient_entry = {
+        patient_entry = dict(row)
+        patient_entry.update({
             "patient_token": patient_token,
             "_original_idx": idx,
             "queue_tier": tier_info["full_label"],
@@ -367,7 +368,7 @@ def rank_waiting_queue(cohort_df: pd.DataFrame) -> List[Dict[str, Any]]:
             "sequence_codes": expl_info["sequence_codes"],
             "protocol_result": protocol_res,
             "risk_result": risk_res
-        }
+        })
         evaluated_patients.append(patient_entry)
 
     # Deterministic multi-factor clinical sorting:
