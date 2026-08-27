@@ -1,6 +1,7 @@
 import os
 import pandas as pd
 import streamlit as st
+from lisa.protocol_floor import evaluate_protocol_floor
 
 st.set_page_config(
     page_title="LISA.ai — ED Sequencing Prototype",
@@ -23,7 +24,7 @@ st.warning(
 st.markdown("---")
 
 # ---------------------------------------------------------
-# Data Loading
+# Data Loading & Guardrail Evaluation
 # ---------------------------------------------------------
 DATA_PATH = os.path.join(os.path.dirname(__file__), "data", "seed_patients.csv")
 
@@ -37,6 +38,21 @@ try:
 except Exception as e:
     st.error(f"Error loading dataset from {DATA_PATH}: {e}")
     st.stop()
+
+# Evaluate Protocol Floors for entire cohort
+floor_results = []
+display_floor_labels = []
+
+for _, row in patients_df.iterrows():
+    res = evaluate_protocol_floor(row)
+    floor_results.append(res)
+    if res["triggered"]:
+        display_floor_labels.append(f"Level {res['floor_level']}")
+    else:
+        display_floor_labels.append("No Hard Floor")
+
+patients_display_df = patients_df.copy()
+patients_display_df.insert(1, "protocol_floor", display_floor_labels)
 
 # ---------------------------------------------------------
 # Summary Metrics
@@ -67,7 +83,7 @@ st.markdown("---")
 # ---------------------------------------------------------
 st.markdown("### 📋 Waiting ED Cohort")
 st.dataframe(
-    patients_df,
+    patients_display_df,
     use_container_width=True,
     hide_index=True
 )
@@ -89,7 +105,9 @@ selected_option = st.selectbox(
 )
 
 selected_token = selected_option.split(" — ")[0]
-patient = patients_df[patients_df["patient_token"] == selected_token].iloc[0]
+selected_idx = patient_tokens.index(selected_token)
+patient = patients_df.iloc[selected_idx]
+patient_floor = floor_results[selected_idx]
 
 # Display patient details in structured cards/columns
 st.markdown(f"#### Patient Record: **{patient['patient_token']}**")
@@ -129,3 +147,39 @@ vital_cols[4].metric(label="Temperature", value=f"{patient['temperature']} °C")
 
 st.markdown("##### 📜 Known Medical History")
 st.write(patient["known_history"])
+
+# ---------------------------------------------------------
+# Clinical Guardrails Section (Milestone 2)
+# ---------------------------------------------------------
+st.markdown("---")
+st.markdown("### 🛡️ Clinical Guardrails")
+
+urgency_names = {
+    1: "Immediate / Critical",
+    2: "Emergent",
+    3: "Urgent",
+    4: "Less Urgent",
+    5: "Non-Urgent"
+}
+
+if patient_floor["triggered"]:
+    floor_lvl = patient_floor["floor_level"]
+    urgency_label = urgency_names.get(floor_lvl, "Emergent")
+    st.error(f"**Protocol Floor:** Level {floor_lvl} — {urgency_label}")
+
+    st.markdown("**Triggered Rules:**")
+    for r_id, reason in zip(patient_floor["rule_ids"], patient_floor["reasons"]):
+        st.markdown(f"• **{r_id}** — {reason}")
+
+    st.markdown("**Status:**")
+    st.markdown(
+        f"🔒 **Hard safety floor active.** Future LISA scoring may escalate this patient "
+        f"but cannot downgrade them below **Level {floor_lvl}**."
+    )
+else:
+    st.success("**Protocol Floor:** No Hard Floor")
+    st.markdown(
+        "No hard protocol rule triggered from currently available simulated information.\n\n"
+        "_This does NOT mean the patient is safe or low risk. Further risk-of-wait assessment "
+        "will be performed by later modules._"
+    )
