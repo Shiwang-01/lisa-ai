@@ -7,6 +7,12 @@ from lisa.protocol_floor import evaluate_protocol_floor
 from lisa.risk_engine import evaluate_risk_of_wait, RISK_BREACH_THRESHOLD
 from lisa.sequencer import rank_waiting_queue
 from lisa.allocator import load_beds_inventory, allocate_available_beds, STATUS_ALLOCATED
+from lisa.surge_simulator import (
+    get_operational_mode,
+    compute_surge_summary,
+    MODE_NORMAL,
+    MODE_SURGE_3X
+)
 
 st.set_page_config(
     page_title="LISA.ai — ED Sequencing Prototype",
@@ -29,20 +35,28 @@ st.warning(
 st.markdown("---")
 
 # ---------------------------------------------------------
-# Data Loading, Guardrails & Risk-of-Wait Evaluation
+# Operational Mode Toggle (Milestone 6A)
 # ---------------------------------------------------------
-DATA_PATH = os.path.join(os.path.dirname(__file__), "data", "seed_patients.csv")
+selected_mode_label = st.radio(
+    "**Select Operational Mode:**",
+    options=["Normal (20 Patients)", "Surge 3× (60 Patients)"],
+    index=0,
+    horizontal=True
+)
 
-@st.cache_data
-def load_patient_data(csv_path: str) -> pd.DataFrame:
-    df = pd.read_csv(csv_path)
-    return df
+mode_code = MODE_SURGE_3X if "Surge" in selected_mode_label else MODE_NORMAL
+mode_context = get_operational_mode(mode_code)
+patients_df = mode_context["patients"]
+beds_df = mode_context["beds_df"]
 
-try:
-    patients_df = load_patient_data(DATA_PATH)
-except Exception as e:
-    st.error(f"Error loading dataset from {DATA_PATH}: {e}")
-    st.stop()
+if mode_code == MODE_SURGE_3X:
+    st.info(
+        "🌊 **Surge 3× Simulation Active**  \n"
+        "60 simulated waiting patients are competing for the same 8 ED spaces.  \n"
+        "_Prototype operations simulation only — not for clinical use._"
+    )
+
+st.markdown("---")
 
 # Evaluate Protocol Floors and Risk-of-Wait for entire cohort
 floor_results = []
@@ -77,8 +91,35 @@ patients_display_df.insert(3, "60-min Risk", risk_60_col)
 patients_display_df.insert(4, "Confidence", confidence_col)
 patients_display_df.insert(5, "Reassess In", reassess_col)
 
+# Evaluate Queue Sequencing for entire cohort (Milestone 4)
+ranked_queue = rank_waiting_queue(patients_df)
+
+# Evaluate Capacity-Aware Bed Allocation (Milestone 5)
+allocation_results = allocate_available_beds(ranked_queue, beds_df)
+
+# Compute Operational Pressure Summary (Milestone 6A)
+surge_summary = compute_surge_summary(ranked_queue, allocation_results, len(beds_df), mode_code)
+
 # ---------------------------------------------------------
-# Summary Metrics
+# Operational Pressure Panel (Milestone 6A)
+# ---------------------------------------------------------
+st.markdown("### 📊 Operational Pressure Panel")
+p_col1, p_col2, p_col3, p_col4 = st.columns(4)
+p_col1.metric("👥 Waiting Patients", surge_summary["patient_count"])
+p_col2.metric("🛏️ Available Beds", f"{surge_summary['available_bed_count']}")
+p_col3.metric("📈 Patients / Bed", f"{surge_summary['patients_per_bed']}×")
+p_col4.metric("👩‍⚕️ Patients / Triage Nurse", f"{surge_summary['patients_per_triage_nurse']}")
+
+p2_col1, p2_col2, p2_col3, p2_col4 = st.columns(4)
+p2_col1.metric("🚨 Reassess ≤ 5 min", f"{surge_summary['reassess_within_5_min']} patients")
+p2_col2.metric("⏱️ Reassess ≤ 15 min", f"{surge_summary['reassess_within_15_min']} patients")
+p2_col3.metric("⏳ Awaiting Suitable Bed", f"{surge_summary['waiting_suitable_bed_count']} patients")
+p2_col4.metric("🛡️ Hard Protocol Floors", f"{surge_summary['hard_protocol_floor_count']} patients")
+
+st.markdown("---")
+
+# ---------------------------------------------------------
+# Cohort Summary Metrics
 # ---------------------------------------------------------
 total_patients = len(patients_df)
 pediatric_count = int((patients_df["age"] < 18).sum())
@@ -86,16 +127,12 @@ geriatric_count = int((patients_df["age"] >= 65).sum())
 unavailable_records = int((patients_df["prior_record_available"].astype(str).str.strip().str.lower().isin(["no", "false", "0"])).sum())
 
 col1, col2, col3, col4 = st.columns(4)
-
 with col1:
     st.metric(label="👥 Patients Waiting", value=total_patients)
-
 with col2:
     st.metric(label="👶 Pediatric Patients", value=pediatric_count)
-
 with col3:
     st.metric(label="🧓 Geriatric Patients", value=geriatric_count)
-
 with col4:
     st.metric(label="📁 Prior Records Unavailable", value=unavailable_records)
 
@@ -104,7 +141,6 @@ st.markdown("---")
 # ---------------------------------------------------------
 # Simulated Bed Capacity Summary (Milestone 5)
 # ---------------------------------------------------------
-beds_df = load_beds_inventory()
 total_beds = len(beds_df)
 resus_beds = int((beds_df["bed_type"] == "Resus").sum())
 monitored_beds = int((beds_df["bed_type"] == "Monitored").sum())
@@ -119,12 +155,6 @@ b_col4.metric("🩺 General", general_beds)
 b_col5.metric("⚡ Fast-track", fast_track_beds)
 
 st.markdown("---")
-
-# Evaluate Queue Sequencing for entire cohort (Milestone 4)
-ranked_queue = rank_waiting_queue(patients_df)
-
-# Evaluate Capacity-Aware Bed Allocation (Milestone 5)
-allocation_results = allocate_available_beds(ranked_queue, beds_df)
 
 queue_display_data = []
 for p in ranked_queue:

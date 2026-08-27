@@ -289,7 +289,7 @@ def test_allocation_independent_of_token():
 
 
 def test_allocator_explanations_non_diagnostic(seed_df, beds_df):
-    """Test 16: Allocator user-facing explanations must NOT contain prohibited diagnostic terms."""
+    """Test 16: Allocator user-facing explanations must NOT contain prohibited diagnostic or procedural terms."""
     queue = rank_waiting_queue(seed_df)
     alloc = allocate_available_beds(queue, beds_df)
 
@@ -302,9 +302,14 @@ def test_allocator_explanations_non_diagnostic(seed_df, beds_df):
         "sepsis",
         "anaphylaxis",
         "decompensated",
+        "iv access",
+        "diagnostic workup",
+        "treatment",
+        "administer medication",
+        "resuscitation",
+        "telemetry"
     ]
 
-    # "stroke-like signs" is allowed; raw "stroke" in context of feature description is allowed.
     for p in alloc["patient_allocations"]:
         combined = " ".join([
             p["allocation_reason"],
@@ -313,7 +318,8 @@ def test_allocator_explanations_non_diagnostic(seed_df, beds_df):
 
         for term in prohibited_terms:
             assert term not in combined, (
-                f"Prohibited diagnostic term '{term}' found in allocation explanation "
+                f"Prohibited term '{term}' found in allocation explanation "
                 f"for patient {p['patient_token']}: '{combined}'"
             )
+
 

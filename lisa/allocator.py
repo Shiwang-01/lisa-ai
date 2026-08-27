@@ -107,7 +107,7 @@ def determine_patient_resource_profile(
         preferred = [BED_TYPE_FAST_TRACK]
         acceptable = [BED_TYPE_FAST_TRACK, BED_TYPE_GENERAL]
         incompatible = [BED_TYPE_RESUS, BED_TYPE_MONITORED]
-        reasons.append("Stable isolated musculoskeletal injury suitable for ambulatory fast-track care")
+        reasons.append("Fast-track resource compatible with stable low-acuity presentation")
         codes.append("RC-FAST-TRACK-INJURY")
         return {
             "minimum_resource_level": BED_TYPE_FAST_TRACK,
@@ -187,12 +187,12 @@ def determine_patient_resource_profile(
     # Covers: procedural laceration (A131), abdominal pain with worsening symptoms (A128),
     # ambiguous upper-abdominal presentation (A125), severe headache (A138),
     # volume loss / dehydration (A143), vague weakness (A132),
-    # flank pain (A137), fever/cough workup (A139), exam stress tightness (A134).
+    # flank pain (A137), fever/cough (A139), exam stress tightness (A134).
     preferred = [BED_TYPE_GENERAL]
     acceptable = [BED_TYPE_GENERAL]
     incompatible = [BED_TYPE_FAST_TRACK, BED_TYPE_RESUS]
 
-    reasons.append("Acute care stretcher indicated for clinical examination, IV access, or diagnostic workup")
+    reasons.append("General ED space appropriate for continued assessment and scheduled reassessment in prototype")
     codes.append("RC-GENERAL-STRETCHER")
 
     return {
