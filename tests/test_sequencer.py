@@ -269,3 +269,92 @@ def test_every_ranked_patient_has_required_fields(seed_df):
     for p in queue:
         for field in required_fields:
             assert field in p, f"Missing {field} in ranked entry {p.get('patient_token')}"
+
+
+def test_initial_clinician_triage_level_1_cannot_map_below_tier_a():
+    """Test 17: Initial clinician triage Level 1 cannot map below Tier A."""
+    patient = {"initial_triage_level": 1, "arrival_minutes_ago": 10}
+    floor_res = {"triggered": False, "floor_level": None}
+    risk_res = {"current_risk": 20, "risk_60_min": 30, "confidence": 100, "recheck_due_min": 60, "time_to_breach_min": None}
+
+    tier = assign_queue_tier(patient, floor_res, risk_res)
+    assert tier["tier_code"] == TIER_A_CODE
+
+
+def test_initial_clinician_triage_level_2_cannot_map_below_tier_b():
+    """Test 18: Initial clinician triage Level 2 cannot map below Tier B."""
+    patient = {"initial_triage_level": 2, "arrival_minutes_ago": 10}
+    floor_res = {"triggered": False, "floor_level": None}
+    risk_res = {"current_risk": 20, "risk_60_min": 30, "confidence": 100, "recheck_due_min": 60, "time_to_breach_min": None}
+
+    tier = assign_queue_tier(patient, floor_res, risk_res)
+    assert tier["tier_code"] in [TIER_A_CODE, TIER_B_CODE]
+
+
+def test_effective_floor_resolution_clinician_precedence():
+    """Test 19: If initial triage is Level 1 and protocol floor is Level 2, effective floor is Level 1."""
+    patient = {"initial_triage_level": 1}
+    floor_res = {"triggered": True, "floor_level": 2}
+    risk_res = {"current_risk": 50, "risk_60_min": 65, "confidence": 95, "recheck_due_min": 15, "time_to_breach_min": None}
+
+    tier = assign_queue_tier(patient, floor_res, risk_res)
+    assert tier["tier_code"] == TIER_A_CODE
+    assert tier["safety_info"]["effective_safety_floor"] == 1
+    assert tier["safety_info"]["effective_safety_floor_source"] == "CLINICIAN_TRIAGE"
+
+
+def test_effective_floor_resolution_protocol_precedence():
+    """Test 20: If initial triage is Level 3 and protocol floor is Level 2, effective floor is Level 2."""
+    patient = {"initial_triage_level": 3}
+    floor_res = {"triggered": True, "floor_level": 2}
+    risk_res = {"current_risk": 50, "risk_60_min": 65, "confidence": 95, "recheck_due_min": 15, "time_to_breach_min": None}
+
+    tier = assign_queue_tier(patient, floor_res, risk_res)
+    assert tier["tier_code"] == TIER_B_CODE
+    assert tier["safety_info"]["effective_safety_floor"] == 2
+    assert tier["safety_info"]["effective_safety_floor_source"] == "PROTOCOL_GUARDRAIL"
+
+
+def test_clinician_level_1_sequenced_ahead_of_non_level_1():
+    """Test 21: A clinician Level 1 patient is sequenced ahead of an otherwise comparable patient with no Level 1 floor."""
+    p_l1 = {
+        "patient_token": "P_CLINICIAN_L1",
+        "initial_triage_level": 1,
+        "age": 60,
+        "complaint_text": "Focal weakness",
+        "mental_status": "Alert",
+        "visible_distress": "Moderate",
+        "arrival_minutes_ago": 15,
+        "case_notes": "Mild deficit",
+        "resource_need": "Observation"
+    }
+    p_l2 = {
+        "patient_token": "P_RISK_L2",
+        "initial_triage_level": 2,
+        "age": 60,
+        "complaint_text": "Severe breathlessness",
+        "mental_status": "Alert",
+        "visible_distress": "Moderate",
+        "arrival_minutes_ago": 15,
+        "case_notes": "Wheezing",
+        "resource_need": "Nebulization"
+    }
+
+    df = pd.DataFrame([p_l2, p_l1])
+    ranked = rank_waiting_queue(df)
+    assert ranked[0]["patient_token"] == "P_CLINICIAN_L1"
+    assert ranked[1]["patient_token"] == "P_RISK_L2"
+
+
+def test_a135_effective_safety_floor_and_tier_a(seed_df):
+    """Test 22: A135 (initial triage 1, protocol floor 2) receives Effective Floor Level 1 and Tier A."""
+    queue = rank_waiting_queue(seed_df)
+    a135 = next(p for p in queue if p["patient_token"] == "A135")
+
+    assert a135["initial_triage_level"] == 1
+    assert a135["protocol_floor_level"] == 2
+    assert a135["effective_safety_floor"] == 1
+    assert a135["effective_safety_floor_source"] == "CLINICIAN_TRIAGE"
+    assert a135["queue_tier_code"] == TIER_A_CODE
+    assert a135["priority_rank"] == 1
+

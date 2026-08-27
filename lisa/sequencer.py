@@ -1,13 +1,16 @@
-"""LISA.ai — Dynamic Queue Sequencer (Milestone 4)
+"""LISA.ai — Dynamic Queue Sequencer (Milestones 4, 6A, 6B.1)
 
-Operational emergency department sequencing engine.
+Operational emergency department sequencing engine with Clinician Triage Safety Floor.
 Answers: "Given all currently waiting patients, who needs attention first?"
 
 Architecture:
 - Two-Stage approach:
   Stage 1: Assign an Operational Queue Tier (Tier A through Tier E)
   Stage 2: Calculate an explainable Sequence Score (0–100)
-- Protocol Safety Floor directly restricts operational tiers.
+- Clinician Triage Safety Floor:
+  Effective Safety Floor = min(initial_triage_level, protocol_floor_level)
+  Effective Level 1 cannot map below Tier A.
+  Effective Level 2 cannot map below Tier B.
 - Safety strictly dominates simple FIFO waiting time.
 """
 
@@ -56,13 +59,83 @@ TIER_ORDER = {
     TIER_E_CODE: 5,
 }
 
+# Safety Floor Sources
+SOURCE_CLINICIAN_TRIAGE = "CLINICIAN_TRIAGE"
+SOURCE_PROTOCOL_GUARDRAIL = "PROTOCOL_GUARDRAIL"
+SOURCE_BOTH = "BOTH"
+SOURCE_NONE = "NONE"
+
+
+def determine_effective_safety_floor(
+    patient: Union[Dict[str, Any], pd.Series],
+    protocol_result: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Calculates the effective operational safety floor from clinician triage and protocol rules.
+
+    Args:
+        patient: Patient record containing initial_triage_level.
+        protocol_result: Protocol floor evaluation result.
+
+    Returns:
+        Dict with initial_triage_level, protocol_floor_level, effective_safety_floor,
+        effective_safety_floor_source, and safety_floor_strength.
+    """
+    raw_init = patient.get("initial_triage_level")
+    try:
+        init_level = int(raw_init) if raw_init is not None and not pd.isna(raw_init) else None
+        if init_level not in [1, 2, 3, 4, 5]:
+            init_level = None
+    except (ValueError, TypeError):
+        init_level = None
+
+    proto_level = protocol_result.get("floor_level") if protocol_result.get("triggered") else None
+    if proto_level not in [1, 2, 3, 4, 5]:
+        proto_level = None
+
+    if init_level is not None and proto_level is not None:
+        if init_level < proto_level:
+            effective_floor = init_level
+            source = SOURCE_CLINICIAN_TRIAGE
+        elif proto_level < init_level:
+            effective_floor = proto_level
+            source = SOURCE_PROTOCOL_GUARDRAIL
+        else:
+            effective_floor = init_level
+            source = SOURCE_BOTH
+    elif init_level is not None:
+        effective_floor = init_level
+        source = SOURCE_CLINICIAN_TRIAGE
+    elif proto_level is not None:
+        effective_floor = proto_level
+        source = SOURCE_PROTOCOL_GUARDRAIL
+    else:
+        effective_floor = None
+        source = SOURCE_NONE
+
+    # Strength for sorting within tiers:
+    # 1 for Level 1, 2 for Level 2, 99 for Levels 3-5 or None
+    if effective_floor == 1:
+        strength = 1
+    elif effective_floor == 2:
+        strength = 2
+    else:
+        strength = 99
+
+    return {
+        "initial_triage_level": init_level,
+        "protocol_floor_level": proto_level,
+        "effective_safety_floor": effective_floor,
+        "effective_safety_floor_source": source,
+        "safety_floor_strength": strength
+    }
+
 
 def assign_queue_tier(
     patient: Union[Dict[str, Any], pd.Series],
     protocol_result: Dict[str, Any],
     risk_result: Dict[str, Any]
-) -> Dict[str, str]:
-    """Assigns an Operational Queue Tier (Stage 1).
+) -> Dict[str, Any]:
+    """Assigns an Operational Queue Tier (Stage 1) respecting Clinician & Protocol Safety Floors.
 
     Args:
         patient: Patient data dict or Series.
@@ -70,9 +143,11 @@ def assign_queue_tier(
         risk_result: Result from evaluate_risk_of_wait.
 
     Returns:
-        Dict with tier_code, tier_name, full_label, and recommended_action.
+        Dict with tier_code, tier_name, full_label, recommended_action, and safety floor details.
     """
-    fl = protocol_result.get("floor_level") if protocol_result.get("triggered") else None
+    safety_info = determine_effective_safety_floor(patient, protocol_result)
+    eff_floor = safety_info["effective_safety_floor"]
+
     current_risk = risk_result.get("current_risk", 0)
     risk_60 = risk_result.get("risk_60_min", 0)
     time_to_breach = risk_result.get("time_to_breach_min")
@@ -81,19 +156,20 @@ def assign_queue_tier(
 
     # -------------------------------------------------------------------------
     # TIER A: Immediate Safety Attention
-    # - Protocol Floor Level 1 OR Current Risk >= 90
+    # - Effective Safety Floor Level 1 OR Current Risk >= 90
     # -------------------------------------------------------------------------
-    if fl == 1 or current_risk >= 90:
+    if eff_floor == 1 or current_risk >= 90:
         return {
             "tier_code": TIER_A_CODE,
             "tier_name": TIER_A_NAME,
             "full_label": f"{TIER_A_CODE} — {TIER_A_NAME}",
-            "recommended_action": TIER_A_ACTION
+            "recommended_action": TIER_A_ACTION,
+            "safety_info": safety_info
         }
 
     # -------------------------------------------------------------------------
     # TIER B: Urgent Reassessment
-    # - Protocol Floor Level 2 (CANNOT map below Tier B)
+    # - Effective Safety Floor Level 2 (CANNOT map below Tier B)
     # - OR Current Risk >= 75
     # - OR Imminent risk breach (time_to_breach == 0 or <= 15 min)
     # - OR Very short reassessment deadline (<= 5 min)
@@ -101,12 +177,13 @@ def assign_queue_tier(
     is_imminent_breach = (time_to_breach == 0) or (time_to_breach is not None and time_to_breach <= 15)
     is_immediate_recheck = recheck_due <= 5
 
-    if fl == 2 or current_risk >= 75 or is_imminent_breach or is_immediate_recheck:
+    if eff_floor == 2 or current_risk >= 75 or is_imminent_breach or is_immediate_recheck:
         return {
             "tier_code": TIER_B_CODE,
             "tier_name": TIER_B_NAME,
             "full_label": f"{TIER_B_CODE} — {TIER_B_NAME}",
-            "recommended_action": TIER_B_ACTION
+            "recommended_action": TIER_B_ACTION,
+            "safety_info": safety_info
         }
 
     # -------------------------------------------------------------------------
@@ -124,7 +201,8 @@ def assign_queue_tier(
             "tier_code": TIER_C_CODE,
             "tier_name": TIER_C_NAME,
             "full_label": f"{TIER_C_CODE} — {TIER_C_NAME}",
-            "recommended_action": TIER_C_ACTION
+            "recommended_action": TIER_C_ACTION,
+            "safety_info": safety_info
         }
 
     # -------------------------------------------------------------------------
@@ -139,7 +217,8 @@ def assign_queue_tier(
             "tier_code": TIER_D_CODE,
             "tier_name": TIER_D_NAME,
             "full_label": f"{TIER_D_CODE} — {TIER_D_NAME}",
-            "recommended_action": TIER_D_ACTION
+            "recommended_action": TIER_D_ACTION,
+            "safety_info": safety_info
         }
 
     # -------------------------------------------------------------------------
@@ -150,7 +229,8 @@ def assign_queue_tier(
         "tier_code": TIER_E_CODE,
         "tier_name": TIER_E_NAME,
         "full_label": f"{TIER_E_CODE} — {TIER_E_NAME}",
-        "recommended_action": TIER_E_ACTION
+        "recommended_action": TIER_E_ACTION,
+        "safety_info": safety_info
     }
 
 
@@ -240,15 +320,29 @@ def calculate_sequence_score(
 def generate_sequence_reasons(
     protocol_result: Dict[str, Any],
     risk_result: Dict[str, Any],
-    tier_info: Dict[str, str],
-    score_info: Dict[str, Any]
+    tier_info: Dict[str, Any],
+    score_info: Dict[str, Any],
+    safety_info: Dict[str, Any]
 ) -> Dict[str, List[str]]:
     """Generates human-readable sequencing explanations and machine codes."""
     reasons: List[str] = []
     codes: List[str] = []
 
-    # Protocol safety floor
-    if protocol_result.get("triggered"):
+    eff_floor = safety_info.get("effective_safety_floor")
+    source = safety_info.get("effective_safety_floor_source")
+
+    # Safety floor explanation
+    if eff_floor in [1, 2]:
+        if source == SOURCE_BOTH:
+            reasons.append(f"Clinician triage and protocol guardrail both support active Level {eff_floor} safety floor")
+            codes.append(f"SQ-SAFETY-FLOOR-L{eff_floor}-BOTH")
+        elif source == SOURCE_CLINICIAN_TRIAGE:
+            reasons.append(f"Existing clinician triage Level {eff_floor} sets an operational safety floor")
+            codes.append(f"SQ-SAFETY-FLOOR-L{eff_floor}-CLINICIAN")
+        elif source == SOURCE_PROTOCOL_GUARDRAIL:
+            reasons.append(f"Protocol guardrail sets a Level {eff_floor} operational safety floor")
+            codes.append(f"SQ-SAFETY-FLOOR-L{eff_floor}-GUARDRAIL")
+    elif protocol_result.get("triggered"):
         fl = protocol_result.get("floor_level")
         reasons.append(f"Active Level {fl} protocol safety floor")
         codes.append(f"SQ-GUARDRAIL-L{fl}")
@@ -333,15 +427,18 @@ def rank_waiting_queue(cohort_df: pd.DataFrame) -> List[Dict[str, Any]]:
         
         # 2. Risk-of-Wait
         risk_res = evaluate_risk_of_wait(row, protocol_res)
+
+        # 3. Safety Floor Evaluation
+        safety_info = determine_effective_safety_floor(row, protocol_res)
         
-        # 3. Operational Queue Tier (Stage 1)
+        # 4. Operational Queue Tier (Stage 1)
         tier_info = assign_queue_tier(row, protocol_res, risk_res)
         
-        # 4. Sequence Score (Stage 2)
+        # 5. Sequence Score (Stage 2)
         score_info = calculate_sequence_score(row, risk_res)
         
-        # 5. Explanations
-        expl_info = generate_sequence_reasons(protocol_res, risk_res, tier_info, score_info)
+        # 6. Explanations
+        expl_info = generate_sequence_reasons(protocol_res, risk_res, tier_info, score_info, safety_info)
 
         arr_val = row.get("arrival_minutes_ago", 0)
         try:
@@ -353,6 +450,11 @@ def rank_waiting_queue(cohort_df: pd.DataFrame) -> List[Dict[str, Any]]:
         patient_entry.update({
             "patient_token": patient_token,
             "_original_idx": idx,
+            "initial_triage_level": safety_info["initial_triage_level"],
+            "protocol_floor_level": safety_info["protocol_floor_level"],
+            "effective_safety_floor": safety_info["effective_safety_floor"],
+            "effective_safety_floor_source": safety_info["effective_safety_floor_source"],
+            "safety_floor_strength": safety_info["safety_floor_strength"],
             "queue_tier": tier_info["full_label"],
             "queue_tier_code": tier_info["tier_code"],
             "queue_tier_name": tier_info["tier_name"],
@@ -373,15 +475,20 @@ def rank_waiting_queue(cohort_df: pd.DataFrame) -> List[Dict[str, Any]]:
 
     # Deterministic multi-factor clinical sorting:
     # 1. Tier Rank ascending (Tier A=1, B=2, C=3, D=4, E=5)
-    # 2. Sequence Score descending
-    # 3. Current Risk descending
-    # 4. 60-min Risk descending
-    # 5. Recheck deadline ascending (shorter first)
-    # 6. Waiting time descending (longer wait first)
-    # 7. Original index ascending (stable tie-breaker, token-independent)
+    # 2. Safety-floor strength ascending:
+    #    - clinician/effective Level 1 first (strength 1)
+    #    - effective Level 2 next (strength 2)
+    #    - no Level 1/2 safety floor after that (strength 99)
+    # 3. Sequence Score descending
+    # 4. Current Risk descending
+    # 5. 60-min Risk descending
+    # 6. Recheck deadline ascending (shorter first)
+    # 7. Waiting time descending (longer wait first)
+    # 8. Original index ascending (stable tie-breaker, token-independent)
     def sort_key(p: Dict[str, Any]):
         return (
             TIER_ORDER.get(p["queue_tier_code"], 99),
+            p["safety_floor_strength"],
             -p["sequence_score"],
             -p["current_risk"],
             -p["risk_60_min"],

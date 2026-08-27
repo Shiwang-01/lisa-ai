@@ -13,6 +13,7 @@ from lisa.surge_simulator import (
     MODE_NORMAL,
     MODE_SURGE_3X
 )
+from lisa.comparison_metrics import compare_queue_policies
 
 st.set_page_config(
     page_title="LISA.ai — ED Sequencing Prototype",
@@ -224,6 +225,108 @@ st.dataframe(
     use_container_width=True,
     hide_index=True
 )
+
+st.markdown("---")
+
+# ---------------------------------------------------------
+# Queue Policy Simulation (Milestone 6B)
+# ---------------------------------------------------------
+st.markdown("### 🔬 Queue Policy Simulation")
+st.markdown(
+    "**Static triage/FIFO baseline vs LISA dynamic sequencing** under identical simulated attention capacity."
+)
+st.caption("⚠️ **Simulation result — not clinical efficacy evidence.**")
+
+policy_comparison = compare_queue_policies(patients_df)
+static_metrics = policy_comparison["static_baseline"]
+lisa_metrics = policy_comparison["lisa"]
+diffs = policy_comparison["differences"]
+assumptions = policy_comparison["simulation_assumptions"]
+
+with st.expander("⚙️ Simulation Assumptions & Parameters", expanded=False):
+    st.markdown(f"""
+- **Simulation Horizon:** {assumptions['simulation_horizon_min']} minutes
+- **Triage Nurse Count:** {assumptions['triage_nurses']}
+- **Attention Slot Interval:** {assumptions['attention_slot_min']} minutes
+- **Available Attention Slots:** {assumptions['available_attention_slots']} slots
+- **Mechanical Capacity Ceilings (under this simplified slot model):**
+  - Maximum patients that can receive attention by ≤ 5 min: **2**
+  - Maximum patients that can receive attention by ≤ 15 min: **4**
+  _(Attention slot times: 0 min, 5 min, 10 min, 15 min, ...)_
+- **Queue Policies:**
+  - **Static Baseline:** Initial triage level priority + FIFO within category (arrival waiting time)
+  - **LISA Dynamic Sequencing:** Protocol guardrails + Risk-of-Wait trajectory + reassessment deadlines + uncertainty buffer + waiting time
+""")
+
+# Side-by-side metric comparison cards
+m_col1, m_col2, m_col3 = st.columns(3)
+with m_col1:
+    st.metric(
+        label="🚨 Reassessment Deadlines Missed",
+        value=f"LISA: {lisa_metrics['reassessment_deadlines_missed']}",
+        delta=f"Static: {static_metrics['reassessment_deadlines_missed']} (Diff: {diffs['reassessment_deadline_breaches_difference']})",
+        delta_color="off"
+    )
+    st.metric(
+        label="⏱️ Avg Reassessment Delay",
+        value=f"LISA: {lisa_metrics['average_reassessment_delay_min']} min",
+        delta=f"Static: {static_metrics['average_reassessment_delay_min']} min (Diff: {diffs['average_delay_difference_min']} min)",
+        delta_color="off"
+    )
+
+with m_col2:
+    st.metric(
+        label="⚡ Urgent Patients Reviewed ≤ 15 min",
+        value=f"LISA: {lisa_metrics['urgent_reviewed_within_15_min']} / {lisa_metrics['urgent_total']}",
+        delta=f"Static: {static_metrics['urgent_reviewed_within_15_min']} / {static_metrics['urgent_total']} (Diff: {diffs['urgent_reviewed_15min_difference']:+d})",
+        delta_color="off"
+    )
+    st.metric(
+        label="📈 High Wait-Risk Reviewed ≤ 30 min",
+        value=f"LISA: {lisa_metrics['high_wait_risk_reviewed_within_30_min']} / {lisa_metrics['high_wait_risk_total']}",
+        delta=f"Static: {static_metrics['high_wait_risk_reviewed_within_30_min']} / {static_metrics['high_wait_risk_total']} (Diff: {diffs['high_wait_risk_reviewed_30min_difference']:+d})",
+        delta_color="off"
+    )
+
+with m_col3:
+    st.metric(
+        label="🔄 Dynamic-Priority Inversions",
+        value=f"LISA: {lisa_metrics['lower_urgency_ahead_of_urgent_count']}",
+        delta=f"Static: {static_metrics['lower_urgency_ahead_of_urgent_count']} (Diff: {diffs['priority_inversion_difference']})",
+        delta_color="off"
+    )
+    st.metric(
+        label="🛡️ Protocol Floors Reviewed ≤ 5 min",
+        value=f"LISA: {lisa_metrics['protocol_floor_reviewed_within_5_min']} / {lisa_metrics['protocol_floor_total']}",
+        delta=f"Static: {static_metrics['protocol_floor_reviewed_within_5_min']} / {static_metrics['protocol_floor_total']} (Diff: {diffs['protocol_floor_reviewed_5min_difference']:+d})",
+        delta_color="off"
+    )
+
+st.caption(
+    f"📊 **Attention Coverage:** Both policies reviewed {lisa_metrics['reviewed_within_horizon']} / {assumptions['patient_count']} patients "
+    f"within {assumptions['simulation_horizon_min']} min using the same {assumptions['available_attention_slots']} available slots."
+)
+
+with st.expander("🔍 Patient-Level Simulation Details", expanded=False):
+    patient_sim_data = []
+    for p in policy_comparison["patient_level_results"]:
+        patient_sim_data.append({
+            "Patient": p["patient_token"],
+            "Static Rank": f"#{p['static_rank']}",
+            "LISA Rank": f"#{p['lisa_rank']}",
+            "Static Attention": f"{p['static_attention_min']} min" if p["static_attention_min"] is not None else "Not reviewed",
+            "LISA Attention": f"{p['lisa_attention_min']} min" if p["lisa_attention_min"] is not None else "Not reviewed",
+            "Reassess Due": f"{p['recheck_due_min']} min",
+            "Static Deadline Miss": "⚠️ Missed" if p["static_deadline_missed"] else "✅ Met",
+            "LISA Deadline Miss": "⚠️ Missed" if p["lisa_deadline_missed"] else "✅ Met",
+            "Queue Tier": p["queue_tier"],
+            "60-min Risk": p["60_min_risk"]
+        })
+    st.dataframe(
+        pd.DataFrame(patient_sim_data),
+        use_container_width=True,
+        hide_index=True
+    )
 
 st.markdown("---")
 
@@ -470,12 +573,35 @@ q_col2.metric("Operational Queue Tier", patient_ranked["queue_tier"])
 q_col3.metric("Sequence Score", f"{patient_ranked['sequence_score']} / 100")
 q_col4.metric("Recommended Action", patient_ranked["recommended_queue_action"])
 
+# Operational Safety Floor Breakdown
+init_lvl = patient_ranked.get("initial_triage_level")
+proto_lvl = patient_ranked.get("protocol_floor_level")
+eff_floor = patient_ranked.get("effective_safety_floor")
+eff_src = patient_ranked.get("effective_safety_floor_source")
+
+sf_col1, sf_col2, sf_col3 = st.columns(3)
+sf_col1.metric("Initial Clinician Triage", f"Level {init_lvl}" if init_lvl else "Not recorded")
+sf_col2.metric("Protocol Guardrail", f"Level {proto_lvl}" if proto_lvl else "No hard floor")
+if eff_floor:
+    if eff_src == "CLINICIAN_TRIAGE":
+        eff_label = f"Level {eff_floor} (Clinician triage takes precedence)"
+    elif eff_src == "PROTOCOL_GUARDRAIL":
+        eff_label = f"Level {eff_floor} (Protocol guardrail safety floor)"
+    elif eff_src == "BOTH":
+        eff_label = f"Level {eff_floor} (Clinician & protocol concordant)"
+    else:
+        eff_label = f"Level {eff_floor}"
+else:
+    eff_label = "No safety floor active"
+sf_col3.metric("Effective Operational Safety Floor", eff_label)
+
 st.markdown("#### 🔍 Why this patient is prioritized here:")
 for reason in patient_ranked["sequence_reasons"]:
     st.markdown(f"- {reason}")
 
 with st.expander("🛠️ Technical Sequencing Details & Machine Codes"):
     st.write(f"- **Tier Category:** `{patient_ranked['queue_tier_code']}` ({patient_ranked['queue_tier_name']})")
+    st.write(f"- **Effective Safety Floor:** `Level {eff_floor}` (Source: `{eff_src}`)")
     st.write(f"- **Machine Sequencing Codes:** `{', '.join(patient_ranked['sequence_codes'])}`")
     st.write(f"- **Arrival Elapsed Time:** {patient_ranked['arrival_minutes_ago']} min")
     st.write(f"- **Sequence Score Formula:** `30% Current Risk + 30% 60m Risk + 15% Breach Urgency + 10% Reassess Urgency + 10% Uncertainty + 5% Wait Time`")
