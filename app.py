@@ -5,6 +5,7 @@ import streamlit as st
 
 from lisa.protocol_floor import evaluate_protocol_floor
 from lisa.risk_engine import evaluate_risk_of_wait, RISK_BREACH_THRESHOLD
+from lisa.sequencer import rank_waiting_queue
 
 st.set_page_config(
     page_title="LISA.ai — ED Sequencing Prototype",
@@ -96,6 +97,43 @@ with col3:
 
 with col4:
     st.metric(label="📁 Prior Records Unavailable", value=unavailable_records)
+
+st.markdown("---")
+
+# Evaluate Queue Sequencing for entire cohort (Milestone 4)
+ranked_queue = rank_waiting_queue(patients_df)
+
+queue_display_data = []
+for p in ranked_queue:
+    queue_display_data.append({
+        "Rank": p["priority_rank"],
+        "Patient": p["patient_token"],
+        "Queue Tier": p["queue_tier"],
+        "Sequence Score": p["sequence_score"],
+        "Current Risk": p["current_risk"],
+        "60-min Risk": p["risk_60_min"],
+        "Confidence": f"{p['confidence']}%",
+        "Waiting": f"{p['arrival_minutes_ago']} min",
+        "Reassess In": f"{p['recheck_due_min']} min",
+        "Recommended Action": p["recommended_queue_action"]
+    })
+ranked_queue_df = pd.DataFrame(queue_display_data)
+
+# ---------------------------------------------------------
+# Recommended ED Queue (Milestone 4)
+# ---------------------------------------------------------
+st.markdown("### ⚡ Recommended ED Queue")
+st.markdown(
+    "**Operational sequencing** based on protocol guardrails, Risk-of-Wait trajectory, "
+    "reassessment urgency, uncertainty, and time already waiting."
+)
+st.caption("⚠️ _Simulation recommendation only — clinician remains responsible for final prioritization._")
+
+st.dataframe(
+    ranked_queue_df,
+    use_container_width=True,
+    hide_index=True
+)
 
 st.markdown("---")
 
@@ -326,3 +364,28 @@ with st.expander("🛠️ Technical simulation details & explanation codes"):
     st.write(f"- **Deterioration Slope:** {patient_risk['deterioration_slope']} pts / 30 min")
     st.write(f"- **Machine Explanation Codes:** `{', '.join(patient_risk['explanation_codes'])}`")
     st.write(f"- **Breach Threshold Set Point:** {RISK_BREACH_THRESHOLD}")
+
+# ---------------------------------------------------------
+# Queue Recommendation Section (Milestone 4)
+# ---------------------------------------------------------
+st.markdown("---")
+st.markdown("### 🎯 Queue Recommendation")
+
+# Lookup selected patient in ranked_queue
+patient_ranked = next(p for p in ranked_queue if p["patient_token"] == selected_token)
+
+q_col1, q_col2, q_col3, q_col4 = st.columns(4)
+q_col1.metric("Priority Rank", f"#{patient_ranked['priority_rank']} / {total_patients}")
+q_col2.metric("Operational Queue Tier", patient_ranked["queue_tier"])
+q_col3.metric("Sequence Score", f"{patient_ranked['sequence_score']} / 100")
+q_col4.metric("Recommended Action", patient_ranked["recommended_queue_action"])
+
+st.markdown("#### 🔍 Why this patient is prioritized here:")
+for reason in patient_ranked["sequence_reasons"]:
+    st.markdown(f"- {reason}")
+
+with st.expander("🛠️ Technical Sequencing Details & Machine Codes"):
+    st.write(f"- **Tier Category:** `{patient_ranked['queue_tier_code']}` ({patient_ranked['queue_tier_name']})")
+    st.write(f"- **Machine Sequencing Codes:** `{', '.join(patient_ranked['sequence_codes'])}`")
+    st.write(f"- **Arrival Elapsed Time:** {patient_ranked['arrival_minutes_ago']} min")
+    st.write(f"- **Sequence Score Formula:** `30% Current Risk + 30% 60m Risk + 15% Breach Urgency + 10% Reassess Urgency + 10% Uncertainty + 5% Wait Time`")
