@@ -1,0 +1,359 @@
+/* LISA.ai — Selected Patient Clinical Context (Milestone 11C) */
+
+.patient-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: #fff;
+}
+
+/* Patient Demographics & Complaint Header */
+.pat-hdr-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pat-token-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.pat-token-row .token {
+  font-family: var(--ff-mono);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.pat-token-row .demo {
+  font-size: 13px;
+  color: var(--ink-2);
+  font-weight: 600;
+}
+
+.pat-token-row .sep {
+  color: var(--ink-4);
+  font-size: 11px;
+}
+
+.pat-token-row .wait {
+  font-family: var(--ff-mono);
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.pat-complaint-box {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ink);
+  line-height: 1.35;
+}
+
+/* Common Section Container & Divider */
+.c-sect {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.c-sect-hdr {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-3);
+}
+
+.c-sect-hdr .line {
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.c-sect-hdr .aux {
+  font-size: 9.5px;
+  color: var(--ink-4);
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* Vitals Strip */
+.vitals-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+}
+
+.vital-cell {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 6px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.vital-cell .vk {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--ink-4);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.vital-cell .vv {
+  font-family: var(--ff-mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+/* Safety Floor Layouts */
+.safety-neutral-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.safety-neutral-cell {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.safety-neutral-cell .sk {
+  font-size: 9.5px;
+  color: var(--ink-4);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.safety-neutral-cell .sv {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.safety-lock-banner {
+  background: var(--danger-bg);
+  border: 1px solid #FDA29B;
+  border-left: 3px solid var(--danger);
+  border-radius: 4px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.safety-lock-hdr {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--danger);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.safety-lock-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.2fr;
+  gap: 6px;
+}
+
+.safety-lock-cell {
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid #FECDCA;
+  border-radius: 3px;
+  padding: 4px 6px;
+}
+
+.safety-lock-cell .lk {
+  font-size: 9px;
+  color: #7A271A;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.safety-lock-cell .lv {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--danger);
+}
+
+.safety-lock-cell.effective-lock {
+  background: #FFF;
+  border-color: #FDA29B;
+}
+
+.safety-lock-cell .note {
+  font-size: 9.5px;
+  color: #912018;
+  margin-top: 1px;
+}
+
+/* Risk-of-Waiting Block */
+.risk-block {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.risk-alert-subtext {
+  font-size: 11px;
+  color: #B42318;
+  background: #FEF3F2;
+  border: 1px solid #FECDCA;
+  border-radius: 3px;
+  padding: 4px 8px;
+  font-weight: 600;
+}
+
+.risk-numbers-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.risk-trajectory-nums {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--ff-mono);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.risk-trajectory-nums .arr {
+  color: var(--ink-4);
+  font-weight: 400;
+  font-size: 11px;
+}
+
+.risk-trajectory-nums .now {
+  color: var(--ink-2);
+}
+
+.risk-trajectory-nums .peak {
+  color: var(--tier-a);
+}
+
+.risk-meta-pills {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 11.5px;
+}
+
+.risk-meta-pills .pill {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.risk-meta-pills .pk {
+  color: var(--ink-4);
+  font-size: 10px;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.risk-meta-pills .pv {
+  font-family: var(--ff-mono);
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.risk-meta-pills .pv.urgent {
+  color: var(--danger);
+}
+
+.risk-svg-container {
+  width: 100%;
+  height: 64px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px;
+}
+
+/* Why This Patient Is Here (Contributing Factors) */
+.factors-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.factor-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--ink-2);
+  line-height: 1.35;
+}
+
+.factor-bullet {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--primary);
+  margin-top: 5px;
+  flex-shrink: 0;
+}
+
+.factor-bullet.guardrail {
+  background: var(--danger);
+}
+
+/* Clinical History Note */
+.pat-history-row {
+  border-top: 1px solid var(--border);
+  padding-top: 6px;
+  font-size: 11px;
+  color: var(--ink-3);
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.pat-history-row .hk {
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 9.5px;
+  color: var(--ink-4);
+  flex-shrink: 0;
+}
+
+.pat-history-row .hv {
+  color: var(--ink-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

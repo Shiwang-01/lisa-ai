@@ -1,6 +1,6 @@
 /**
- * LISA.ai — Nurse Command Center Workstation Controller (Milestone 11B)
- * Manages live queue state, mode toggling, row selection, and panel updates.
+ * LISA.ai — Nurse Command Center Workstation Controller (Milestone 11C)
+ * Manages live queue state, mode toggling, row selection, and selected-patient clinical context.
  */
 
 (function () {
@@ -9,9 +9,14 @@
     summary: null,
     queue: [],
     selectedPatientToken: null,
+    selectedPatientData: null,
     loading: false,
-    error: null
+    patientLoading: false,
+    error: null,
+    patientError: null
   };
+
+  let patientFetchVersion = 0;
 
   function tierLetter(tierCode) {
     if (!tierCode) return 'E';
@@ -26,7 +31,7 @@
   async function loadData() {
     state.loading = true;
     state.error = null;
-    renderLoadingState();
+    renderQueueLoadingState();
 
     try {
       const [summary, queue] = await Promise.all([
@@ -46,12 +51,17 @@
       state.loading = false;
       renderHeader();
       renderQueue();
-      renderPlaceholders();
+
+      if (state.selectedPatientToken) {
+        fetchAndRenderPatient(state.selectedPatientToken);
+      } else {
+        renderEmptyPatientState();
+      }
     } catch (err) {
       console.error('Failed to load workstation data:', err);
       state.loading = false;
       state.error = err.message || 'Unable to load LISA simulation data.';
-      renderErrorState();
+      renderQueueErrorState();
     }
   }
 
@@ -73,6 +83,7 @@
   }
 
   function selectPatient(token) {
+    if (state.selectedPatientToken === token && state.selectedPatientData) return;
     state.selectedPatientToken = token;
 
     // Highlight row in list
@@ -85,7 +96,33 @@
       }
     });
 
-    renderPlaceholders();
+    // Update right decision panel token preview
+    const decisionToken = document.getElementById('decision-token');
+    if (decisionToken) decisionToken.textContent = token;
+
+    fetchAndRenderPatient(token);
+  }
+
+  async function fetchAndRenderPatient(token) {
+    const fetchId = ++patientFetchVersion;
+    state.patientLoading = true;
+    state.patientError = null;
+    renderPatientLoadingSkeleton(token);
+
+    try {
+      const data = await window.LISA_API.getPatient(token, state.mode);
+      if (fetchId !== patientFetchVersion) return; // Stale response guard
+
+      state.selectedPatientData = data;
+      state.patientLoading = false;
+      renderSelectedPatient(data);
+    } catch (err) {
+      if (fetchId !== patientFetchVersion) return;
+      console.error(`Failed to fetch patient ${token}:`, err);
+      state.patientLoading = false;
+      state.patientError = err.message || 'Unable to load selected patient.';
+      renderPatientErrorState(token);
+    }
   }
 
   function renderHeader() {
@@ -185,47 +222,315 @@
     });
   }
 
-  function renderPlaceholders() {
-    const selectedToken = state.selectedPatientToken || '—';
-    const patient = state.queue.find(p => p.patient_token === selectedToken);
+  // Generates lightweight SVG trajectory chart
+  function renderTrajectorySvg(current, r30, r60, r120) {
+    const W = 320, H = 54, padX = 14, padY = 8;
+    const values = [current, r30, r60, r120];
+    const minVal = 0, maxVal = 100;
 
-    // Center Panel Header & Body
-    const centerTokenHeader = document.getElementById('selected-token-heading');
+    const stepX = (W - padX * 2) / 3;
+    const pts = values.map((v, i) => {
+      const x = padX + i * stepX;
+      const y = H - padY - ((v - minVal) / (maxVal - minVal)) * (H - padY * 2);
+      return [x, y];
+    });
+
+    const pathD = pts.map((p, i) => (i === 0 ? `M ${p[0]} ${p[1]}` : `L ${p[0]} ${p[1]}`)).join(' ');
+    const areaD = `${pathD} L ${pts[3][0]} ${H - padY} L ${pts[0][0]} ${H - padY} Z`;
+
+    // 75 Threshold line
+    const y75 = H - padY - ((75 - minVal) / (maxVal - minVal)) * (H - padY * 2);
+
+    const circles = pts.map((p, i) => {
+      const isPeak = i === 3;
+      return `<circle cx="${p[0]}" cy="${p[1]}" r="${isPeak ? 3 : 2.2}" fill="${isPeak ? '#4F46E5' : '#fff'}" stroke="#4F46E5" stroke-width="1.5" />`;
+    }).join('');
+
+    return `
+      <svg viewBox="0 0 ${W} ${H}" class="risk-svg-container" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="risk-grad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#4F46E5" stop-opacity="0.2"/>
+            <stop offset="100%" stop-color="#4F46E5" stop-opacity="0.0"/>
+          </linearGradient>
+        </defs>
+        <!-- Threshold 75 line -->
+        <line x1="${padX}" y1="${y75}" x2="${W - padX}" y2="${y75}" stroke="#FDA29B" stroke-width="1" stroke-dasharray="3,3" />
+        <text x="${W - padX - 18}" y="${y75 - 2}" font-size="8" fill="#B42318" font-family="var(--ff-mono)" font-weight="600">75</text>
+        <!-- Area & line -->
+        <path d="${areaD}" fill="url(#risk-grad)" />
+        <path d="${pathD}" fill="none" stroke="#4F46E5" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+        ${circles}
+      </svg>
+    `;
+  }
+
+  function renderSelectedPatient(data) {
+    const container = document.getElementById('selected-patient-container');
+    if (!container) return;
+
+    const p = data.patient;
+    const g = data.guardrails;
+    const r = data.risk_of_wait;
+    const q = data.queue;
+
+    // Update center panel header chips
     const centerRankChip = document.getElementById('center-rank-chip');
     const centerTierChip = document.getElementById('center-tier-chip');
-
-    if (centerTokenHeader) {
-      centerTokenHeader.textContent = selectedToken;
-    }
-    if (centerRankChip && patient) {
-      centerRankChip.textContent = `Rank #${patient.priority_rank}`;
+    if (centerRankChip) {
+      centerRankChip.textContent = `Rank #${q.priority_rank}`;
       centerRankChip.style.display = 'inline-flex';
     }
-    if (centerTierChip && patient) {
-      const tLet = tierLetter(patient.queue_tier_code);
+    if (centerTierChip) {
+      const tLet = tierLetter(q.queue_tier_code);
       centerTierChip.textContent = `Tier ${tLet}`;
       centerTierChip.className = `tier tier-${tLet.toLowerCase()}`;
       centerTierChip.style.display = 'inline-block';
     }
 
-    // Right Decision Panel
-    const decisionToken = document.getElementById('decision-token');
-    if (decisionToken) {
-      decisionToken.textContent = selectedToken;
+    // Vitals formatted values
+    const bpStr = (p.systolic_bp && p.diastolic_bp) ? `${p.systolic_bp}/${p.diastolic_bp}` : '—';
+    const spo2Str = p.spo2 ? `${p.spo2}%` : '—';
+    const tempStr = p.temperature ? `${p.temperature}°` : '—';
+    const hrStr = p.heart_rate ?? '—';
+    const rrStr = p.respiratory_rate ?? '—';
+
+    // Safety Section formatting
+    let safetyHtml = '';
+    if (g.has_hard_floor) {
+      const sourceNote = (g.effective_safety_floor_source === 'CLINICIAN_TRIAGE')
+        ? 'Clinician triage takes precedence'
+        : (g.reasons && g.reasons.length > 0 ? g.reasons[0] : 'Protocol rule triggered');
+
+      safetyHtml = `
+        <div class="safety-lock-banner">
+          <div class="safety-lock-hdr">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+            Operational Safety Floor Engaged
+          </div>
+          <div class="safety-lock-grid">
+            <div class="safety-lock-cell">
+              <div class="lk">Initial Triage</div>
+              <div class="lv">Level ${g.initial_triage_level ?? '—'}</div>
+              <div class="note">Clinician</div>
+            </div>
+            <div class="safety-lock-cell">
+              <div class="lk">Protocol Floor</div>
+              <div class="lv">Level ${g.protocol_floor_level ?? '—'}</div>
+              <div class="note">LISA Rule</div>
+            </div>
+            <div class="safety-lock-cell effective-lock">
+              <div class="lk">Effective Floor</div>
+              <div class="lv">Level ${g.effective_safety_floor}</div>
+              <div class="note">${sourceNote}</div>
+            </div>
+          </div>
+        </div>
+      `;
+    } else {
+      const protoLabel = g.triggered ? `Level ${g.floor_level}` : 'No Hard Floor';
+      safetyHtml = `
+        <div class="safety-neutral-grid">
+          <div class="safety-neutral-cell">
+            <div class="sk">Initial Clinician Triage</div>
+            <div class="sv">Level ${g.initial_triage_level ?? '—'}</div>
+          </div>
+          <div class="safety-neutral-cell">
+            <div class="sk">Protocol Guardrail</div>
+            <div class="sv">${protoLabel}</div>
+          </div>
+        </div>
+      `;
     }
+
+    // Risk of Waiting Trajectory & Meta
+    const isUrgentRecheck = r.recheck_due_min <= 5;
+    const recheckCls = isUrgentRecheck ? 'urgent' : '';
+    const safetySubtext = g.has_hard_floor ? `
+      <div class="risk-alert-subtext">
+        Safety floor active — reassessment urgency takes precedence over waiting projections.
+      </div>
+    ` : '';
+
+    const svgChart = renderTrajectorySvg(r.current_risk, r.risk_30_min, r.risk_60_min, r.risk_120_min);
+
+    // Filter and deduplicate contributing reasons (max 4-5)
+    const rawReasons = [];
+    if (g.has_hard_floor && g.reasons && g.reasons.length > 0) {
+      rawReasons.push({ text: `Safety floor active: ${g.reasons[0]}`, isGuardrail: true });
+    }
+    if (q.sequence_reasons) {
+      q.sequence_reasons.forEach(sr => rawReasons.push({ text: sr, isGuardrail: false }));
+    }
+    if (r.risk_factors) {
+      r.risk_factors.slice(0, 3).forEach(rf => rawReasons.push({ text: rf, isGuardrail: false }));
+    }
+    if (r.uncertainty_factors && r.uncertainty_factors.length > 0) {
+      rawReasons.push({ text: r.uncertainty_factors[0], isGuardrail: false });
+    }
+
+    // Deduplicate by text lowercase prefix
+    const seen = new Set();
+    const primaryReasons = [];
+    for (const item of rawReasons) {
+      const key = item.text.toLowerCase().slice(0, 30);
+      if (!seen.has(key)) {
+        seen.add(key);
+        primaryReasons.push(item);
+        if (primaryReasons.length >= 4) break;
+      }
+    }
+
+    const reasonsHtml = primaryReasons.map(rItem => `
+      <div class="factor-item">
+        <span class="factor-bullet ${rItem.isGuardrail ? 'guardrail' : ''}"></span>
+        <span>${rItem.text}</span>
+      </div>
+    `).join('');
+
+    // History line
+    const historyHtml = p.known_history ? `
+      <div class="pat-history-row">
+        <span class="hk">History:</span>
+        <span class="hv" title="${p.known_history}">${p.known_history}</span>
+      </div>
+    ` : '';
+
+    container.innerHTML = `
+      <!-- Header -->
+      <div class="pat-hdr-block">
+        <div class="pat-token-row">
+          <span class="token">${p.patient_token}</span>
+          <span class="demo">${p.age}${p.sex ? p.sex.charAt(0) : ''}</span>
+          <span class="sep">·</span>
+          <span class="wait">${p.arrival_minutes_ago}m waiting</span>
+        </div>
+        <div class="pat-complaint-box">
+          "${p.complaint_text}"
+        </div>
+      </div>
+
+      <!-- 1. Vitals -->
+      <div class="c-sect">
+        <div class="c-sect-hdr">
+          <span>Vitals</span>
+          <div class="line"></div>
+        </div>
+        <div class="vitals-grid">
+          <div class="vital-cell"><span class="vk">HR</span><span class="vv">${hrStr}</span></div>
+          <div class="vital-cell"><span class="vk">BP</span><span class="vv">${bpStr}</span></div>
+          <div class="vital-cell"><span class="vk">SpO2</span><span class="vv">${spo2Str}</span></div>
+          <div class="vital-cell"><span class="vk">RR</span><span class="vv">${rrStr}</span></div>
+          <div class="vital-cell"><span class="vk">Temp</span><span class="vv">${tempStr}</span></div>
+        </div>
+      </div>
+
+      <!-- 2. Safety -->
+      <div class="c-sect">
+        <div class="c-sect-hdr">
+          <span>Safety</span>
+          <div class="line"></div>
+        </div>
+        ${safetyHtml}
+      </div>
+
+      <!-- 3. Risk of Waiting -->
+      <div class="c-sect">
+        <div class="c-sect-hdr">
+          <span>Simulated Risk of Waiting</span>
+          <div class="line"></div>
+          <span class="aux">0–120 min horizon</span>
+        </div>
+        <div class="risk-block">
+          ${safetySubtext}
+          <div class="risk-numbers-row">
+            <div class="risk-trajectory-nums">
+              <span class="now">${r.current_risk}</span>
+              <span class="arr">→</span>
+              <span>${r.risk_30_min}</span>
+              <span class="arr">→</span>
+              <span>${r.risk_60_min}</span>
+              <span class="arr">→</span>
+              <span class="peak">${r.risk_120_min}</span>
+            </div>
+            <div class="risk-meta-pills">
+              <div class="pill">
+                <span class="pk">Confidence:</span>
+                <span class="pv">${r.confidence}%</span>
+              </div>
+              <div class="pill">
+                <span class="pk">Reassess:</span>
+                <span class="pv ${recheckCls}">${r.recheck_due_min} min</span>
+              </div>
+            </div>
+          </div>
+          ${svgChart}
+        </div>
+      </div>
+
+      <!-- 4. Contributing Factors -->
+      <div class="c-sect">
+        <div class="c-sect-hdr">
+          <span>Contributing Factors</span>
+          <div class="line"></div>
+        </div>
+        <div class="factors-list">
+          ${reasonsHtml}
+        </div>
+      </div>
+
+      <!-- 5. History Note -->
+      ${historyHtml}
+    `;
   }
 
-  function renderLoadingState() {
-    const listEl = document.getElementById('queue-list');
-    if (!listEl) return;
-    listEl.innerHTML = `
-      <div style="padding: 32px; text-align: center; color: var(--ink-4);">
-        <div style="font-size: 13px; font-weight: 500; margin-bottom: 8px;">Loading queue simulation...</div>
+  function renderPatientLoadingSkeleton(token) {
+    const container = document.getElementById('selected-patient-container');
+    if (!container) return;
+    container.innerHTML = `
+      <div style="padding: 24px; text-align: center; color: var(--ink-4);">
+        <div style="font-size: 13px; font-weight: 600; color: var(--ink-2); margin-bottom: 6px;">Loading Patient ${token}...</div>
+        <div style="font-size: 11.5px;">Fetching clinical profile and Risk-of-Wait trajectory.</div>
       </div>
     `;
   }
 
-  function renderErrorState() {
+  function renderPatientErrorState(token) {
+    const container = document.getElementById('selected-patient-container');
+    if (!container) return;
+    container.innerHTML = `
+      <div class="state-banner error">
+        <span><b>Unable to load patient ${token}.</b></span>
+        <button id="btn-retry-patient">Retry</button>
+      </div>
+    `;
+    const btnRetry = document.getElementById('btn-retry-patient');
+    if (btnRetry) {
+      btnRetry.addEventListener('click', () => fetchAndRenderPatient(token));
+    }
+  }
+
+  function renderEmptyPatientState() {
+    const container = document.getElementById('selected-patient-container');
+    if (!container) return;
+    container.innerHTML = `
+      <div style="padding: 32px; text-align: center; color: var(--ink-4);">
+        Select a patient from the queue to view clinical context.
+      </div>
+    `;
+  }
+
+  function renderQueueLoadingState() {
+    const listEl = document.getElementById('queue-list');
+    if (!listEl) return;
+    listEl.innerHTML = `
+      <div style="padding: 32px; text-align: center; color: var(--ink-4);">
+        <div style="font-size: 13px; font-weight: 500;">Loading queue simulation...</div>
+      </div>
+    `;
+  }
+
+  function renderQueueErrorState() {
     const listEl = document.getElementById('queue-list');
     if (!listEl) return;
     listEl.innerHTML = `

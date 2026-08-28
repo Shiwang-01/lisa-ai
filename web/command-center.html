@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="assets/tokens.css"/>
   <link rel="stylesheet" href="assets/shell.css"/>
   <link rel="stylesheet" href="assets/queue.css"/>
+  <link rel="stylesheet" href="assets/patient.css"/>
   <script src="assets/api.js" defer></script>
   <script src="assets/command-center.js" defer></script>
 </head>
@@ -152,7 +153,7 @@
           </div>
         </section>
 
-        <!-- 2. CENTER: SELECTED PATIENT PLACEHOLDER (11B) -->
+        <!-- 2. CENTER: SELECTED PATIENT DETAIL (11C) -->
         <section class="panel" aria-label="Selected Patient Detail">
           <div class="p-hdr">
             <div class="title">Selected Patient</div>
@@ -162,31 +163,8 @@
             <span class="tier tier-c" id="center-tier-chip" style="display:none;">Tier --</span>
           </div>
 
-          <div class="placeholder-body scroll">
-            <div class="placeholder-token-hdr">
-              <div class="token" id="selected-token-heading">—</div>
-              <div class="badge">Patient Inspector Context</div>
-            </div>
-
-            <div class="placeholder-card">
-              <div class="p-title">Clinical Context Placeholder</div>
-              <div class="p-desc">
-                Detailed clinical profile, 5-point vitals, deterministic safety guardrails, and Risk-of-Wait trajectory curves will render here in <b>Milestone 11C</b>.
-              </div>
-              <div class="placeholder-skeleton-grid">
-                <div class="skeleton-box"></div>
-                <div class="skeleton-box"></div>
-                <div class="skeleton-box"></div>
-              </div>
-            </div>
-
-            <div class="placeholder-card">
-              <div class="p-title">Risk-of-Wait Trajectory Preview</div>
-              <div class="p-desc">
-                Explainable trajectory forecasting (Current, 30-min, 60-min, 120-min) and contributing risk factors.
-              </div>
-              <div style="height:44px; background:#EAECF0; border-radius:4px; opacity:0.5; margin-top:4px;"></div>
-            </div>
+          <div class="patient-body scroll" id="selected-patient-container">
+            <!-- Dynamically rendered patient context -->
           </div>
         </section>
 
