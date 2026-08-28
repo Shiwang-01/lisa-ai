@@ -1,13 +1,13 @@
 /**
- * LISA.ai — Nurse Command Center Workstation Controller (Milestones 11B, 11C, 11D, 11E, 11F)
+ * LISA.ai — Nurse Command Center Workstation Controller (Milestones 11B - 11G)
  * Manages live queue state, mode toggling, row selection, selected-patient context,
- * clinician decision actions, override modal, session audit, Capacity, and Evidence workspaces.
+ * clinician decision actions, override modal, session audit, Capacity, Evidence, and Audit workspaces.
  */
 
 (function () {
   const state = {
     mode: 'NORMAL',
-    activeWorkspace: 'command', // 'command' | 'capacity' | 'evidence'
+    activeWorkspace: 'command', // 'command' | 'capacity' | 'evidence' | 'audit'
     summary: null,
     queue: [],
     auditEvents: [],
@@ -15,10 +15,15 @@
     comparisonData: null,
     selectedPatientToken: null,
     selectedPatientData: null,
+    selectedAuditEventId: null,
+    auditFilterPatient: '',
+    auditFilterAction: '',
+    auditFilterMode: '',
     loading: false,
     patientLoading: false,
     capacityLoading: false,
     evidenceLoading: false,
+    auditLoading: false,
     actionPending: false,
     feedbackMessage: null,
     feedbackType: null, // 'success' | 'error'
@@ -74,6 +79,8 @@
         renderCapacityWorkspace();
       } else if (state.activeWorkspace === 'evidence') {
         renderEvidenceWorkspace();
+      } else if (state.activeWorkspace === 'audit') {
+        renderAuditWorkspace();
       } else {
         if (state.selectedPatientToken) {
           fetchAndRenderPatient(state.selectedPatientToken);
@@ -115,6 +122,7 @@
     const commandWs = document.getElementById('command-workspace');
     const capacityWs = document.getElementById('capacity-workspace');
     const evidenceWs = document.getElementById('evidence-workspace');
+    const auditWs = document.getElementById('audit-workspace');
 
     document.querySelectorAll('.nav .nav-item').forEach(item => {
       if (item.dataset.nav === workspace) {
@@ -128,6 +136,7 @@
     if (commandWs) commandWs.style.display = 'none';
     if (capacityWs) capacityWs.style.display = 'none';
     if (evidenceWs) evidenceWs.style.display = 'none';
+    if (auditWs) auditWs.style.display = 'none';
 
     if (workspace === 'capacity') {
       if (capacityWs) {
@@ -138,6 +147,11 @@
       if (evidenceWs) {
         evidenceWs.style.display = 'grid';
         renderEvidenceWorkspace();
+      }
+    } else if (workspace === 'audit') {
+      if (auditWs) {
+        auditWs.style.display = 'grid';
+        renderAuditWorkspace();
       }
     } else {
       if (commandWs) {
@@ -203,6 +217,9 @@
     try {
       const auditRes = await window.LISA_API.getAudit();
       state.auditEvents = auditRes.events || [];
+      if (state.activeWorkspace === 'audit') {
+        renderAuditWorkspace();
+      }
     } catch (err) {
       console.warn('Failed to refresh audit log:', err);
     }
@@ -291,7 +308,6 @@
 
     listEl.innerHTML = rowsHtml;
 
-    // Attach click and keyboard listeners
     listEl.querySelectorAll('.qrow').forEach(row => {
       row.addEventListener('click', () => {
         selectPatient(row.dataset.token);
@@ -305,7 +321,6 @@
     });
   }
 
-  // Generates lightweight SVG trajectory chart
   function renderTrajectorySvg(current, r30, r60, r120) {
     const W = 320, H = 54, padX = 14, padY = 8;
     const values = [current, r30, r60, r120];
@@ -321,7 +336,6 @@
     const pathD = pts.map((p, i) => (i === 0 ? `M ${p[0]} ${p[1]}` : `L ${p[0]} ${p[1]}`)).join(' ');
     const areaD = `${pathD} L ${pts[3][0]} ${H - padY} L ${pts[0][0]} ${H - padY} Z`;
 
-    // 75 Threshold line
     const y75 = H - padY - ((75 - minVal) / (maxVal - minVal)) * (H - padY * 2);
 
     const circles = pts.map((p, i) => {
@@ -355,7 +369,6 @@
     const r = data.risk_of_wait;
     const q = data.queue;
 
-    // Update center panel header chips
     const centerRankChip = document.getElementById('center-rank-chip');
     const centerTierChip = document.getElementById('center-tier-chip');
     if (centerRankChip) {
@@ -369,14 +382,12 @@
       centerTierChip.style.display = 'inline-block';
     }
 
-    // Vitals formatted values
     const bpStr = (p.systolic_bp && p.diastolic_bp) ? `${p.systolic_bp}/${p.diastolic_bp}` : '—';
     const spo2Str = p.spo2 ? `${p.spo2}%` : '—';
     const tempStr = p.temperature ? `${p.temperature}°` : '—';
     const hrStr = p.heart_rate ?? '—';
     const rrStr = p.respiratory_rate ?? '—';
 
-    // Safety Section formatting
     let safetyHtml = '';
     if (g.has_hard_floor) {
       const sourceNote = (g.effective_safety_floor_source === 'CLINICIAN_TRIAGE')
@@ -424,7 +435,6 @@
       `;
     }
 
-    // Risk of Waiting Trajectory & Meta
     const isUrgentRecheck = r.recheck_due_min <= 5;
     const recheckCls = isUrgentRecheck ? 'urgent' : '';
     const safetySubtext = g.has_hard_floor ? `
@@ -435,7 +445,6 @@
 
     const svgChart = renderTrajectorySvg(r.current_risk, r.risk_30_min, r.risk_60_min, r.risk_120_min);
 
-    // Filter and deduplicate contributing reasons (max 4-5)
     const rawReasons = [];
     if (g.has_hard_floor && g.reasons && g.reasons.length > 0) {
       rawReasons.push({ text: `Safety floor active: ${g.reasons[0]}`, isGuardrail: true });
@@ -476,7 +485,6 @@
     ` : '';
 
     container.innerHTML = `
-      <!-- Header -->
       <div class="pat-hdr-block">
         <div class="pat-token-row">
           <span class="token">${p.patient_token}</span>
@@ -489,7 +497,6 @@
         </div>
       </div>
 
-      <!-- 1. Vitals -->
       <div class="c-sect">
         <div class="c-sect-hdr">
           <span>Vitals</span>
@@ -504,7 +511,6 @@
         </div>
       </div>
 
-      <!-- 2. Safety -->
       <div class="c-sect">
         <div class="c-sect-hdr">
           <span>Safety</span>
@@ -513,7 +519,6 @@
         ${safetyHtml}
       </div>
 
-      <!-- 3. Risk of Waiting -->
       <div class="c-sect">
         <div class="c-sect-hdr">
           <span>Simulated Risk of Waiting</span>
@@ -547,7 +552,6 @@
         </div>
       </div>
 
-      <!-- 4. Contributing Factors -->
       <div class="c-sect">
         <div class="c-sect-hdr">
           <span>Contributing Factors</span>
@@ -558,7 +562,6 @@
         </div>
       </div>
 
-      <!-- 5. History Note -->
       ${historyHtml}
     `;
   }
@@ -663,7 +666,6 @@
     }
 
     container.innerHTML = `
-      <!-- 1. System Recommendation Card -->
       <div class="d-sys-card">
         <div class="d-lbl">System Recommendation</div>
         <div class="d-sys-tier-row">
@@ -676,13 +678,11 @@
         </div>
       </div>
 
-      <!-- 2. Reassess Box -->
       <div class="d-reassess-box">
         <span class="rk">Reassess</span>
         <span class="rv ${isUrgent ? 'urgent' : ''}">${reassessText}</span>
       </div>
 
-      <!-- 3. Resource Recommendation Box -->
       <div class="d-res-box">
         <div class="rk">Resource Allocation</div>
         <div class="d-res-row">
@@ -692,7 +692,6 @@
         <div class="d-res-note">${resNote}</div>
       </div>
 
-      <!-- 4. Clinician Decision & Action Area -->
       <div class="d-clin-section">
         <div class="d-clin-hdr">
           <span class="title">Your Decision</span>
@@ -718,7 +717,6 @@
         </div>
       </div>
 
-      <!-- 5. Recent Session Actions -->
       <div class="d-recent-sect">
         <div class="d-recent-hdr">
           <span>Recent Session Action</span>
@@ -729,13 +727,11 @@
         </div>
       </div>
 
-      <!-- 6. Reset Actions Link -->
       <div class="d-reset-wrap">
         <button class="btn-reset-actions" id="btn-reset-session-actions">Reset Demo Actions</button>
       </div>
     `;
 
-    // Attach Action Listeners
     const btnAccept = document.getElementById('btn-action-accept');
     const btnEscalate = document.getElementById('btn-action-escalate');
     const btnOverride = document.getElementById('btn-action-override');
@@ -907,13 +903,19 @@
   }
 
   async function handleResetAudit() {
-    if (!confirm('Reset session clinician decisions?')) return;
+    if (!confirm('Reset all clinician action events for this prototype session?')) return;
     try {
       await window.LISA_API.resetAudit();
       state.auditEvents = [];
+      state.selectedAuditEventId = null;
       state.feedbackMessage = 'Session decisions reset';
       state.feedbackType = 'success';
-      renderDecisionPanel(state.selectedPatientData);
+      if (state.selectedPatientData) {
+        renderDecisionPanel(state.selectedPatientData);
+      }
+      if (state.activeWorkspace === 'audit') {
+        renderAuditWorkspace();
+      }
     } catch (err) {
       alert(`Failed to reset audit: ${err.message}`);
     }
@@ -1027,7 +1029,6 @@
     }
 
     container.innerHTML = `
-      <!-- LEFT: 8 SIMULATED RESOURCE CARDS -->
       <section class="cap-main-panel" aria-label="Simulated ED Resources">
         <div class="p-hdr">
           <div class="title">Simulated ED Spaces</div>
@@ -1045,7 +1046,6 @@
         </div>
       </section>
 
-      <!-- RIGHT: AWAITING SUITABLE CAPACITY LIST -->
       <section class="cap-awaiting-panel" aria-label="Awaiting Suitable Capacity">
         <div class="p-hdr">
           <div class="title">Awaiting Suitable Capacity</div>
@@ -1107,14 +1107,9 @@
     };
     const sBase = comp.static_baseline || {};
     const lisa = comp.lisa || {};
-    const diff = comp.differences || {};
-
-    const isSurge = state.mode === 'SURGE_3X';
 
     container.innerHTML = `
-      <!-- LEFT: MAIN COMPARISON PANEL -->
       <section class="ev-main-panel" aria-label="Policy Simulation Comparison">
-        <!-- Top Framing Banner -->
         <div class="ev-disclaimer-banner">
           <div class="ev-disclaimer-left">
             <span class="ev-badge">Simulation Result</span>
@@ -1126,7 +1121,6 @@
         </div>
 
         <div class="ev-metrics-body">
-          <!-- Policy Descriptions Header -->
           <div class="ev-policy-headers">
             <div class="ev-policy-card">
               <div class="ev-policy-title">
@@ -1144,7 +1138,6 @@
             </div>
           </div>
 
-          <!-- Hero Metric: Dynamic Priority Inversions -->
           <div class="ev-hero-metric highlight">
             <div class="ev-hero-top">
               <span class="ev-hero-title">Dynamic Priority Inversions</span>
@@ -1165,8 +1158,6 @@
             </div>
           </div>
 
-          <!-- Paired Metrics List -->
-          <!-- 1. High Wait-Risk Reviewed <= 30 min -->
           <div class="ev-row-item">
             <div class="ev-row-hdr">
               <span class="ev-row-label">High Wait-Risk Patients Reviewed ≤ 30 min</span>
@@ -1184,7 +1175,6 @@
             </div>
           </div>
 
-          <!-- 2. Average Reassessment Delay -->
           <div class="ev-row-item">
             <div class="ev-row-hdr">
               <span class="ev-row-label">Average Reassessment Delay</span>
@@ -1202,7 +1192,6 @@
             </div>
           </div>
 
-          <!-- 3. Reassessment Deadlines Missed (Honest presentation) -->
           <div class="ev-row-item">
             <div class="ev-row-hdr">
               <span class="ev-row-label">Reassessment Deadlines Missed</span>
@@ -1220,7 +1209,6 @@
             </div>
           </div>
 
-          <!-- 4. Urgent Patients Reviewed <= 15 min -->
           <div class="ev-row-item">
             <div class="ev-row-hdr">
               <span class="ev-row-label">Urgent Patients Reviewed ≤ 15 min</span>
@@ -1238,7 +1226,6 @@
             </div>
           </div>
 
-          <!-- 5. Protocol-Floor Patients Reviewed <= 5 min -->
           <div class="ev-row-item">
             <div class="ev-row-hdr">
               <span class="ev-row-label">Protocol-Floor Patients Reviewed ≤ 5 min</span>
@@ -1256,7 +1243,6 @@
             </div>
           </div>
 
-          <!-- 6. Horizon Coverage -->
           <div class="ev-row-item">
             <div class="ev-row-hdr">
               <span class="ev-row-label">120-Minute Horizon Attention Coverage</span>
@@ -1276,9 +1262,7 @@
         </div>
       </section>
 
-      <!-- RIGHT: INTERPRETATION & LIMITATIONS SIDEBAR -->
       <aside class="ev-side-panel">
-        <!-- What Simulation Suggests -->
         <div class="ev-side-card">
           <div class="ev-side-title">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
@@ -1300,7 +1284,6 @@
           </ul>
         </div>
 
-        <!-- What This Does NOT Prove -->
         <div class="ev-side-card" style="border-left: 3px solid #F79009;">
           <div class="ev-side-title" style="color:#B54708;">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#B54708" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
@@ -1326,7 +1309,6 @@
           </ul>
         </div>
 
-        <!-- Simulation Assumptions -->
         <div class="ev-side-card">
           <div class="ev-side-title">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
@@ -1359,6 +1341,324 @@
         </div>
       </aside>
     `;
+  }
+
+  // =========================================================================
+  // AUDIT WORKSPACE CONTROLLER (Milestone 11G)
+  // =========================================================================
+
+  async function renderAuditWorkspace() {
+    const container = document.getElementById('audit-workspace');
+    if (!container) return;
+
+    try {
+      const auditRes = await window.LISA_API.getAudit();
+      state.auditEvents = auditRes.events || [];
+    } catch (err) {
+      container.innerHTML = `
+        <div class="state-banner error" style="grid-column: span 2;">
+          <span><b>Unable to load clinician audit trail.</b></span>
+          <button id="btn-retry-audit">Retry</button>
+        </div>
+      `;
+      const btn = document.getElementById('btn-retry-audit');
+      if (btn) btn.addEventListener('click', renderAuditWorkspace);
+      return;
+    }
+
+    const allEvents = state.auditEvents;
+
+    // Apply Client-Side Filters
+    let filteredEvents = allEvents;
+    if (state.auditFilterPatient) {
+      filteredEvents = filteredEvents.filter(e => e.patient_token.toLowerCase().includes(state.auditFilterPatient.toLowerCase()));
+    }
+    if (state.auditFilterAction) {
+      filteredEvents = filteredEvents.filter(e => e.action === state.auditFilterAction);
+    }
+    if (state.auditFilterMode) {
+      filteredEvents = filteredEvents.filter(e => e.operational_mode === state.auditFilterMode);
+    }
+
+    // Auto-select first event if none selected or selected is missing
+    const selectedEvent = allEvents.find(e => e.event_id === state.selectedAuditEventId) || (filteredEvents.length > 0 ? filteredEvents[0] : null);
+    if (selectedEvent) {
+      state.selectedAuditEventId = selectedEvent.event_id;
+    } else {
+      state.selectedAuditEventId = null;
+    }
+
+    // Unique patient tokens for filter suggestion
+    const uniqueTokens = Array.from(new Set(allEvents.map(e => e.patient_token)));
+
+    // Table rows HTML
+    let tableBodyHtml = '';
+    if (allEvents.length === 0) {
+      tableBodyHtml = `
+        <tr>
+          <td colspan="6">
+            <div class="aud-empty">
+              <div class="aud-empty-title">No clinician actions recorded in this session.</div>
+              <div class="aud-empty-sub">Accept, escalate, or override a system recommendation in Command to create an audit event.</div>
+            </div>
+          </td>
+        </tr>
+      `;
+    } else if (filteredEvents.length === 0) {
+      tableBodyHtml = `
+        <tr>
+          <td colspan="6">
+            <div class="aud-empty">
+              <div class="aud-empty-title">No events match the selected filters.</div>
+              <div class="aud-empty-sub">Try clearing or adjusting your patient, action, or mode filters.</div>
+            </div>
+          </td>
+        </tr>
+      `;
+    } else {
+      tableBodyHtml = filteredEvents.map(e => {
+        const isSelected = e.event_id === state.selectedAuditEventId;
+        const timeStr = e.timestamp ? e.timestamp.split('T')[1].split('.')[0] : '—';
+        const actLower = e.action.toLowerCase();
+        const modeLabel = e.operational_mode === 'SURGE_3X' ? 'Surge 3×' : 'Normal';
+
+        let transitionText = '';
+        if (e.action === 'ACCEPT') {
+          transitionText = `${e.system_queue_tier} <span style="color:var(--ink-4); font-size:10px;">(Accepted)</span>`;
+        } else {
+          transitionText = `${e.system_queue_tier} → <b>${e.clinician_selected_tier || '—'}</b>`;
+        }
+
+        const reasonText = (e.override_reason || '—').replace(/_/g, ' ');
+
+        return `
+          <tr class="aud-row ${isSelected ? 'selected' : ''}" data-id="${e.event_id}">
+            <td class="mono" style="color:var(--ink-3); font-size:10px;">${timeStr}</td>
+            <td class="mono" style="font-weight:700; color:var(--primary); font-size:11.5px;">${e.patient_token}</td>
+            <td><span class="aud-badge ${actLower}">${e.action}</span></td>
+            <td>${transitionText}</td>
+            <td style="color:var(--ink-2);">${reasonText}</td>
+            <td style="font-size:10px; color:var(--ink-3);">${modeLabel}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // Detail Panel HTML
+    let detailHtml = '';
+    if (!selectedEvent) {
+      detailHtml = `
+        <div class="aud-empty" style="margin-top:40px;">
+          <div class="aud-empty-title">No Event Selected</div>
+          <div class="aud-empty-sub">Select an audit event from the list to view the immutable decision snapshot.</div>
+        </div>
+      `;
+    } else {
+      const e = selectedEvent;
+      const timeStr = e.timestamp ? e.timestamp.replace('T', ' ').split('.')[0] : '—';
+      const reasonLabel = (e.override_reason || 'None specified').replace(/_/g, ' ');
+      const protoFloorStr = e.protocol_floor_level ? `Level ${e.protocol_floor_level}` : 'No Hard Floor';
+      const effFloorStr = e.effective_safety_floor ? `Level ${e.effective_safety_floor}` : 'None';
+      const bedStr = e.system_bed_id ? `${e.system_bed_id} (${e.system_bed_type || 'General'})` : 'None / Awaiting';
+
+      detailHtml = `
+        <!-- 1. Event Metadata -->
+        <div class="aud-detail-sect">
+          <div class="aud-detail-sect-title">
+            <span>Event Identification</span>
+            <span class="mono" style="font-size:9.5px; font-weight:600; color:var(--primary);">${e.event_id.slice(0, 8)}...</span>
+          </div>
+          <div class="aud-grid-2">
+            <div class="aud-cell"><div class="aud-k">Timestamp</div><div class="aud-v mono">${timeStr}</div></div>
+            <div class="aud-cell"><div class="aud-k">User Role</div><div class="aud-v">${e.user_role || 'TRIAGE_NURSE_01'}</div></div>
+            <div class="aud-cell"><div class="aud-k">Patient Token</div><div class="aud-v mono" style="color:var(--primary); font-size:12px;">${e.patient_token}</div></div>
+            <div class="aud-cell"><div class="aud-k">Operational Mode</div><div class="aud-v">${e.operational_mode}</div></div>
+          </div>
+        </div>
+
+        <!-- 2. Clinician Decision -->
+        <div class="aud-detail-sect" style="border-color:#C7D7FE; background:#F8FAFF;">
+          <div class="aud-detail-sect-title" style="color:var(--primary);">
+            <span>Clinician Decision</span>
+            <span class="aud-badge ${e.action.toLowerCase()}">${e.action}</span>
+          </div>
+          <div class="aud-grid-2">
+            <div class="aud-cell"><div class="aud-k">Action Taken</div><div class="aud-v">${e.action}</div></div>
+            <div class="aud-cell"><div class="aud-k">Clinician Tier</div><div class="aud-v" style="color:var(--primary);">${e.clinician_selected_tier || e.system_queue_tier}</div></div>
+            <div class="aud-cell" style="grid-column: span 2;"><div class="aud-k">Reason</div><div class="aud-v">${reasonLabel}</div></div>
+          </div>
+          ${e.override_note ? `
+            <div class="aud-note-box">
+              "${e.override_note}"
+            </div>
+          ` : ''}
+        </div>
+
+        <!-- 3. System Snapshot at Event Time -->
+        <div class="aud-detail-sect">
+          <div class="aud-detail-sect-title"><span>System Recommendation Snapshot</span></div>
+          <div class="aud-grid-2">
+            <div class="aud-cell"><div class="aud-k">System Tier</div><div class="aud-v">${e.system_queue_tier}</div></div>
+            <div class="aud-cell"><div class="aud-k">Priority Rank</div><div class="aud-v mono">#${e.system_queue_rank ?? '—'}</div></div>
+            <div class="aud-cell"><div class="aud-k">Sequence Score</div><div class="aud-v mono">${e.system_sequence_score ?? '—'}</div></div>
+            <div class="aud-cell"><div class="aud-k">Resource Status</div><div class="aud-v">${e.system_resource_status ?? '—'}</div></div>
+          </div>
+        </div>
+
+        <!-- 4. Safety Context -->
+        <div class="aud-detail-sect">
+          <div class="aud-detail-sect-title"><span>Safety Floor Context</span></div>
+          <div class="aud-grid-2">
+            <div class="aud-cell"><div class="aud-k">Initial Clinician Triage</div><div class="aud-v">Level ${e.initial_triage_level ?? '—'}</div></div>
+            <div class="aud-cell"><div class="aud-k">Protocol Floor</div><div class="aud-v">${protoFloorStr}</div></div>
+            <div class="aud-cell" style="grid-column: span 2;"><div class="aud-k">Effective Safety Floor</div><div class="aud-v" style="color:${e.effective_safety_floor ? 'var(--danger)' : 'var(--ink)'};">${effFloorStr}</div></div>
+          </div>
+        </div>
+
+        <!-- 5. Risk Context -->
+        <div class="aud-detail-sect">
+          <div class="aud-detail-sect-title"><span>Risk of Waiting Snapshot</span></div>
+          <div class="aud-grid-2">
+            <div class="aud-cell"><div class="aud-k">Current Risk</div><div class="aud-v mono">${e.current_risk ?? '—'}/100</div></div>
+            <div class="aud-cell"><div class="aud-k">60-Min Projected Risk</div><div class="aud-v mono">${e.risk_60_min ?? '—'}/100</div></div>
+            <div class="aud-cell"><div class="aud-k">Model Confidence</div><div class="aud-v">${e.confidence ?? '—'}%</div></div>
+            <div class="aud-cell"><div class="aud-k">Reassessment Due</div><div class="aud-v">${e.recheck_due_min ?? '—'} min</div></div>
+          </div>
+        </div>
+
+        <!-- 6. Version Trace -->
+        <div class="aud-detail-sect">
+          <div class="aud-detail-sect-title"><span>Immutable Engine Version Trace</span></div>
+          <div class="aud-grid-2">
+            <div class="aud-cell"><div class="aud-k">Risk Model</div><div class="aud-v mono" style="font-size:10px;">${e.model_version || 'LISA-RoW-v0.7'}</div></div>
+            <div class="aud-cell"><div class="aud-k">Rule Set</div><div class="aud-v mono" style="font-size:10px;">${e.rule_version || 'LISA-Demo-Rules-v1'}</div></div>
+            <div class="aud-cell" style="grid-column: span 2;"><div class="aud-k">Sequencer Engine</div><div class="aud-v mono" style="font-size:10px;">${e.sequencer_version || 'LISA-SEQ-v1'}</div></div>
+          </div>
+        </div>
+      `;
+    }
+
+    container.innerHTML = `
+      <!-- LEFT: AUDIT EVENTS TABLE -->
+      <section class="aud-main-panel" aria-label="Session Clinician Audit Log">
+        <div class="p-hdr">
+          <div class="title">Session Clinician Audit</div>
+          <div class="sub">Prototype session log of clinician decisions · <span id="audit-event-count">${allEvents.length}</span> recorded</div>
+          <div class="spacer"></div>
+          <span class="chip mono" style="font-size:10.5px;">User: TRIAGE_NURSE_01</span>
+        </div>
+
+        <!-- Filter Controls -->
+        <div class="aud-filter-bar">
+          <div class="aud-filter-group">
+            <label for="aud-sel-patient">Patient:</label>
+            <select id="aud-sel-patient" class="aud-filter-select">
+              <option value="">All Patients</option>
+              ${uniqueTokens.map(tok => `<option value="${tok}" ${state.auditFilterPatient === tok ? 'selected' : ''}>${tok}</option>`).join('')}
+            </select>
+          </div>
+
+          <div class="aud-filter-group">
+            <label for="aud-sel-action">Action:</label>
+            <select id="aud-sel-action" class="aud-filter-select">
+              <option value="" ${state.auditFilterAction === '' ? 'selected' : ''}>All Actions</option>
+              <option value="ACCEPT" ${state.auditFilterAction === 'ACCEPT' ? 'selected' : ''}>ACCEPT</option>
+              <option value="ESCALATE" ${state.auditFilterAction === 'ESCALATE' ? 'selected' : ''}>ESCALATE</option>
+              <option value="OVERRIDE" ${state.auditFilterAction === 'OVERRIDE' ? 'selected' : ''}>OVERRIDE</option>
+            </select>
+          </div>
+
+          <div class="aud-filter-group">
+            <label for="aud-sel-mode">Mode:</label>
+            <select id="aud-sel-mode" class="aud-filter-select">
+              <option value="" ${state.auditFilterMode === '' ? 'selected' : ''}>All Modes</option>
+              <option value="NORMAL" ${state.auditFilterMode === 'NORMAL' ? 'selected' : ''}>Normal</option>
+              <option value="SURGE_3X" ${state.auditFilterMode === 'SURGE_3X' ? 'selected' : ''}>Surge 3×</option>
+            </select>
+          </div>
+
+          <button class="aud-btn-reset" id="btn-reset-audit-workspace">Reset Demo Actions</button>
+        </div>
+
+        <!-- Table Container -->
+        <div class="aud-table-container scroll">
+          <table class="aud-table">
+            <thead>
+              <tr>
+                <th style="width:75px;">Time</th>
+                <th style="width:65px;">Patient</th>
+                <th style="width:85px;">Action</th>
+                <th>Decision Transition</th>
+                <th>Reason</th>
+                <th style="width:75px;">Mode</th>
+              </tr>
+            </thead>
+            <tbody id="aud-table-body">
+              ${tableBodyHtml}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- RIGHT: DETAIL INSPECTOR -->
+      <section class="aud-detail-panel" aria-label="Audit Event Inspector">
+        <div class="p-hdr">
+          <div class="title">Audit Event Inspector</div>
+          <div class="spacer"></div>
+          ${selectedEvent ? `
+            <button class="btn-open-command" id="btn-open-in-command" data-token="${selectedEvent.patient_token}">
+              Open in Command ↗
+            </button>
+          ` : ''}
+        </div>
+
+        <div class="aud-detail-body scroll">
+          ${detailHtml}
+        </div>
+      </section>
+    `;
+
+    // Attach Listeners
+    const selPatient = document.getElementById('aud-sel-patient');
+    const selAction = document.getElementById('aud-sel-action');
+    const selMode = document.getElementById('aud-sel-mode');
+    const btnReset = document.getElementById('btn-reset-audit-workspace');
+    const btnOpenCmd = document.getElementById('btn-open-in-command');
+
+    if (selPatient) {
+      selPatient.addEventListener('change', (e) => {
+        state.auditFilterPatient = e.target.value;
+        renderAuditWorkspace();
+      });
+    }
+    if (selAction) {
+      selAction.addEventListener('change', (e) => {
+        state.auditFilterAction = e.target.value;
+        renderAuditWorkspace();
+      });
+    }
+    if (selMode) {
+      selMode.addEventListener('change', (e) => {
+        state.auditFilterMode = e.target.value;
+        renderAuditWorkspace();
+      });
+    }
+    if (btnReset) {
+      btnReset.addEventListener('click', handleResetAudit);
+    }
+    if (btnOpenCmd) {
+      btnOpenCmd.addEventListener('click', () => {
+        const tok = btnOpenCmd.dataset.token;
+        if (tok) selectPatientAndSwitchToCommand(tok);
+      });
+    }
+
+    container.querySelectorAll('.aud-row[data-id]').forEach(row => {
+      row.addEventListener('click', () => {
+        state.selectedAuditEventId = row.dataset.id;
+        renderAuditWorkspace();
+      });
+    });
   }
 
   function renderPatientLoadingSkeleton(token) {
@@ -1459,7 +1759,7 @@
     document.querySelectorAll('.nav .nav-item:not(.disabled)').forEach(item => {
       item.addEventListener('click', () => {
         const nav = item.dataset.nav;
-        if (nav === 'command' || nav === 'capacity' || nav === 'evidence') {
+        if (nav === 'command' || nav === 'capacity' || nav === 'evidence' || nav === 'audit') {
           switchWorkspace(nav);
         }
       });
@@ -1469,7 +1769,7 @@
     loadData();
   }
 
-  window.LISA_WORKSTATION = { init, setMode, selectPatient, switchWorkspace };
+  window.LISA_WORKSTATION = { init, setMode, selectPatient, switchWorkspace, renderAuditWorkspace };
 
   document.addEventListener('DOMContentLoaded', init);
 })();
