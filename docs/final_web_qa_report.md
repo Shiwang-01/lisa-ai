@@ -1,5 +1,9 @@
 # LISA.ai Nurse Workstation - Final QA Report
 
+- **Release:** `v1.0.0-prototype`
+- **Final QA:** 134 tests passing (`pytest`)
+- **Hosted Demo:** [https://lisa-ai-7dtj.onrender.com/](https://lisa-ai-7dtj.onrender.com/)
+
 ## Overview
 This document contains the final QA evaluation for Milestone 11I of the LISA.ai Nurse Workstation prototype.
 
