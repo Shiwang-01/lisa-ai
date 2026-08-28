@@ -1,10 +1,35 @@
+# Python / Bytecode
 __pycache__/
 *.py[cod]
 *$py.class
+
+# Environments
 .venv/
 venv/
+ENV/
+env/
+
+# Testing & Cache
+.pytest_cache/
+*.log
+
+# Environment configs & secrets
+.env
+.env.*
+
+# Local / IDE
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
 .streamlit/
+
+# Local Scratch & QA
+scratch/
+final_qa.py
+verify_qa_fix.py
+
+# Reference archives
 project.zip
 project*.zip
 project*/
-scratch/
