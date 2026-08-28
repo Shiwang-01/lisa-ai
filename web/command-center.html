@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="assets/shell.css"/>
   <link rel="stylesheet" href="assets/queue.css"/>
   <link rel="stylesheet" href="assets/patient.css"/>
+  <link rel="stylesheet" href="assets/decision.css"/>
   <script src="assets/api.js" defer></script>
   <script src="assets/command-center.js" defer></script>
 </head>
@@ -168,7 +169,7 @@
           </div>
         </section>
 
-        <!-- 3. RIGHT: DECISION PLACEHOLDER (11B) -->
+        <!-- 3. RIGHT: DECISION RAIL (11D) -->
         <section class="panel" aria-label="Clinician Decision Panel">
           <div class="p-hdr">
             <div class="title">Decision</div>
@@ -176,28 +177,15 @@
             <div class="sub mono" id="decision-token">—</div>
           </div>
 
-          <div class="placeholder-body scroll">
-            <div class="placeholder-card">
-              <div class="p-title">Decision Engine Placeholder</div>
-              <div class="p-desc">
-                Queue recommendation, bed allocation compatibility, reassessment timers, and clinician controls (Accept / Escalate / Override) will render here in <b>Milestone 11D</b>.
-              </div>
-              <div style="display:flex; flex-direction:column; gap:8px; margin-top:8px;">
-                <div style="height:36px; background:#EAECF0; border-radius:4px; opacity:0.6;"></div>
-                <div style="height:36px; background:#EAECF0; border-radius:4px; opacity:0.4;"></div>
-              </div>
-            </div>
-
-            <div class="placeholder-card">
-              <div class="p-title">Session Audit Trail</div>
-              <div class="p-desc">
-                Recent clinician decisions and session action history.
-              </div>
-            </div>
+          <div class="decision-body scroll" id="decision-container">
+            <!-- Dynamically rendered decision engine & clinician controls -->
           </div>
         </section>
       </main>
     </div>
   </div>
+
+  <!-- OVERRIDE MODAL ROOT -->
+  <div id="modal-root"></div>
 </body>
 </html>
