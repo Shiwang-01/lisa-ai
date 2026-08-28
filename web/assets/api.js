@@ -102,6 +102,12 @@ const LISA_API = {
     });
     if (!res.ok) throw new Error(`Reset audit failed: ${res.status}`);
     return await res.json();
+  },
+
+  async getGovernance() {
+    const res = await fetch(`${this.baseUrl}/governance`);
+    if (!res.ok) throw new Error(`Governance API failed: ${res.status}`);
+    return await res.json();
   }
 };
 

@@ -1,0 +1,269 @@
+/* LISA.ai — Governance Workspace Styling (Milestone 11H) */
+
+.governance-workspace {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 10px 14px;
+  overflow-y: auto;
+  box-sizing: border-box;
+  gap: 10px;
+}
+
+/* Header & Banner */
+.gov-hdr-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 14px;
+}
+
+.gov-title-group .title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+
+.gov-title-group .sub {
+  font-size: 11px;
+  color: var(--ink-3);
+  margin-top: 1px;
+}
+
+.gov-status-pill {
+  background: #FEF0C7;
+  border: 1px solid #FEC84B;
+  color: #B54708;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 4px 10px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+/* Top 4 Principles Grid */
+.gov-principles-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.gov-principle-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 8px 10px;
+}
+
+.gov-principle-card .pk {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--primary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.gov-principle-card .pv {
+  font-size: 11px;
+  color: var(--ink-2);
+  margin-top: 2px;
+  line-height: 1.35;
+}
+
+/* Primary Implemented vs Production Section */
+.gov-comparison-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.gov-col {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.gov-col-hdr {
+  padding: 8px 12px;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.gov-col.implemented .gov-col-hdr {
+  background: #F8FAFF;
+  color: #175CD3;
+  border-bottom-color: #D1E0FF;
+}
+
+.gov-col.production .gov-col-hdr {
+  background: #FFFDF5;
+  color: #B54708;
+  border-bottom-color: #FEDF89;
+}
+
+.gov-list {
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  list-style: none;
+  margin: 0;
+}
+
+.gov-list-item {
+  font-size: 11px;
+  color: var(--ink-2);
+  line-height: 1.4;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.gov-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  margin-top: 5px;
+  flex-shrink: 0;
+}
+
+.gov-dot.implemented {
+  background: #175CD3;
+}
+
+.gov-dot.production {
+  background: #B54708;
+}
+
+/* Bottom 3-Column Grid */
+.gov-bottom-grid {
+  display: grid;
+  grid-template-columns: 1.1fr 1.1fr 1.2fr;
+  gap: 10px;
+}
+
+.gov-section-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.gov-card-title {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-3);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border-soft);
+  padding-bottom: 4px;
+}
+
+/* Excluded Tags */
+.gov-tags-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.gov-tag-excluded {
+  background: #F2F4F7;
+  color: #344054;
+  border: 1px solid #D0D5DD;
+  font-size: 10px;
+  font-family: var(--ff-mono);
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+/* Accountability Steps */
+.gov-chain-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.gov-chain-step {
+  font-size: 10.5px;
+  color: var(--ink-2);
+  padding: 2px 0;
+  line-height: 1.35;
+}
+
+.gov-chain-step.highlight {
+  font-weight: 600;
+  color: var(--primary);
+}
+
+/* Version Grid */
+.gov-ver-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.gov-ver-cell {
+  background: var(--panel-2);
+  border: 1px solid var(--border-soft);
+  border-radius: 4px;
+  padding: 4px 6px;
+}
+
+.gov-ver-k {
+  font-size: 9px;
+  color: var(--ink-4);
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.gov-ver-v {
+  font-size: 10.5px;
+  font-family: var(--ff-mono);
+  font-weight: 700;
+  color: var(--primary);
+  margin-top: 1px;
+}
+
+.gov-ver-desc {
+  font-size: 9.5px;
+  color: var(--ink-3);
+  margin-top: 1px;
+  line-height: 1.25;
+}
+
+/* Regulatory Card */
+.gov-reg-box {
+  background: var(--panel-2);
+  border: 1px solid var(--border-soft);
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-size: 10px;
+  color: var(--ink-3);
+  line-height: 1.35;
+}
+
+.gov-reg-title {
+  font-weight: 700;
+  color: var(--ink-2);
+  margin-bottom: 2px;
+}

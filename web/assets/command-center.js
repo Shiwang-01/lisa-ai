@@ -1,18 +1,19 @@
 /**
- * LISA.ai — Nurse Command Center Workstation Controller (Milestones 11B - 11G)
+ * LISA.ai — Nurse Command Center Workstation Controller (Milestones 11B - 11H)
  * Manages live queue state, mode toggling, row selection, selected-patient context,
- * clinician decision actions, override modal, session audit, Capacity, Evidence, and Audit workspaces.
+ * clinician decision actions, override modal, session audit, Capacity, Evidence, Audit, and Governance workspaces.
  */
 
 (function () {
   const state = {
     mode: 'NORMAL',
-    activeWorkspace: 'command', // 'command' | 'capacity' | 'evidence' | 'audit'
+    activeWorkspace: 'command', // 'command' | 'capacity' | 'evidence' | 'audit' | 'governance'
     summary: null,
     queue: [],
     auditEvents: [],
     allocationData: null,
     comparisonData: null,
+    governanceData: null,
     selectedPatientToken: null,
     selectedPatientData: null,
     selectedAuditEventId: null,
@@ -21,16 +22,11 @@
     auditFilterMode: '',
     loading: false,
     patientLoading: false,
-    capacityLoading: false,
-    evidenceLoading: false,
-    auditLoading: false,
     actionPending: false,
     feedbackMessage: null,
     feedbackType: null, // 'success' | 'error'
     error: null,
-    patientError: null,
-    capacityError: null,
-    evidenceError: null
+    patientError: null
   };
 
   let patientFetchVersion = 0;
@@ -51,12 +47,13 @@
     renderQueueLoadingState();
 
     try {
-      const [summary, queue, auditRes, allocRes, compRes] = await Promise.all([
+      const [summary, queue, auditRes, allocRes, compRes, govRes] = await Promise.all([
         window.LISA_API.getSummary(state.mode),
         window.LISA_API.getQueue(state.mode),
         window.LISA_API.getAudit().catch(() => ({ events: [] })),
         window.LISA_API.getAllocation(state.mode).catch(() => null),
-        window.LISA_API.getComparison(state.mode).catch(() => null)
+        window.LISA_API.getComparison(state.mode).catch(() => null),
+        window.LISA_API.getGovernance().catch(() => null)
       ]);
 
       state.summary = summary;
@@ -64,6 +61,7 @@
       state.auditEvents = auditRes.events || [];
       state.allocationData = allocRes;
       state.comparisonData = compRes;
+      state.governanceData = govRes;
 
       // Preserve selection if token exists in new queue, else select first patient
       const tokenExists = queue.some(p => p.patient_token === state.selectedPatientToken);
@@ -81,6 +79,8 @@
         renderEvidenceWorkspace();
       } else if (state.activeWorkspace === 'audit') {
         renderAuditWorkspace();
+      } else if (state.activeWorkspace === 'governance') {
+        renderGovernanceWorkspace();
       } else {
         if (state.selectedPatientToken) {
           fetchAndRenderPatient(state.selectedPatientToken);
@@ -103,7 +103,6 @@
     document.body.dataset.mode = newMode;
     state.feedbackMessage = null;
 
-    // Update active button state
     document.querySelectorAll('.mode-selector button').forEach(btn => {
       if (btn.dataset.mode === newMode) {
         btn.classList.add('active');
@@ -123,6 +122,7 @@
     const capacityWs = document.getElementById('capacity-workspace');
     const evidenceWs = document.getElementById('evidence-workspace');
     const auditWs = document.getElementById('audit-workspace');
+    const govWs = document.getElementById('governance-workspace');
 
     document.querySelectorAll('.nav .nav-item').forEach(item => {
       if (item.dataset.nav === workspace) {
@@ -132,11 +132,11 @@
       }
     });
 
-    // Hide all
     if (commandWs) commandWs.style.display = 'none';
     if (capacityWs) capacityWs.style.display = 'none';
     if (evidenceWs) evidenceWs.style.display = 'none';
     if (auditWs) auditWs.style.display = 'none';
+    if (govWs) govWs.style.display = 'none';
 
     if (workspace === 'capacity') {
       if (capacityWs) {
@@ -153,6 +153,11 @@
         auditWs.style.display = 'grid';
         renderAuditWorkspace();
       }
+    } else if (workspace === 'governance') {
+      if (govWs) {
+        govWs.style.display = 'flex';
+        renderGovernanceWorkspace();
+      }
     } else {
       if (commandWs) {
         commandWs.style.display = 'grid';
@@ -168,7 +173,6 @@
     state.selectedPatientToken = token;
     state.feedbackMessage = null;
 
-    // Highlight row in list
     document.querySelectorAll('#queue-list .qrow').forEach(row => {
       if (row.dataset.token === token) {
         row.classList.add('selected');
@@ -178,7 +182,6 @@
       }
     });
 
-    // Update right decision panel token preview
     const decisionToken = document.getElementById('decision-token');
     if (decisionToken) decisionToken.textContent = token;
 
@@ -198,7 +201,7 @@
 
     try {
       const data = await window.LISA_API.getPatient(token, state.mode);
-      if (fetchId !== patientFetchVersion) return; // Stale response guard
+      if (fetchId !== patientFetchVersion) return;
 
       state.selectedPatientData = data;
       state.patientLoading = false;
@@ -239,16 +242,12 @@
       waitingEl.textContent = s.patient_count;
       waitingEl.className = `v ${isSurge ? 'warn' : ''}`;
     }
-    if (spacesEl) {
-      spacesEl.textContent = s.bed_count;
-    }
+    if (spacesEl) spacesEl.textContent = s.bed_count;
     if (reassess5El) {
       reassess5El.textContent = s.reassess_within_5_min;
       reassess5El.className = `v ${isSurge || s.reassess_within_5_min > 10 ? 'warn' : ''}`;
     }
-    if (avgWaitEl) {
-      avgWaitEl.textContent = `${s.avg_wait_min}m`;
-    }
+    if (avgWaitEl) avgWaitEl.textContent = `${s.avg_wait_min}m`;
   }
 
   function renderQueue() {
@@ -256,9 +255,7 @@
     const countEl = document.getElementById('queue-count');
     if (!listEl) return;
 
-    if (countEl) {
-      countEl.textContent = state.queue.length;
-    }
+    if (countEl) countEl.textContent = state.queue.length;
 
     if (state.queue.length === 0) {
       listEl.innerHTML = `
@@ -309,9 +306,7 @@
     listEl.innerHTML = rowsHtml;
 
     listEl.querySelectorAll('.qrow').forEach(row => {
-      row.addEventListener('click', () => {
-        selectPatient(row.dataset.token);
-      });
+      row.addEventListener('click', () => selectPatient(row.dataset.token));
       row.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
@@ -758,7 +753,7 @@
     renderDecisionPanel(state.selectedPatientData);
 
     try {
-      const res = await window.LISA_API.acceptAction(token, state.mode);
+      await window.LISA_API.acceptAction(token, state.mode);
       state.feedbackMessage = 'Decision recorded: Accepted recommendation';
       state.feedbackType = 'success';
       await refreshAudit();
@@ -1017,7 +1012,7 @@
                 Reassess ${p.recheck_due_min}m
               </span>
             </div>
-            <div style="display:flex; align-items:center; justify-content:space-between;">
+            <div style="display:flex; align-items:space-between;">
               <span class="cap-pat-rank">Rank #${p.priority_rank}</span>
               <span class="tier tier-${tLet.toLowerCase()}">Tier ${tLet}</span>
             </div>
@@ -1368,7 +1363,6 @@
 
     const allEvents = state.auditEvents;
 
-    // Apply Client-Side Filters
     let filteredEvents = allEvents;
     if (state.auditFilterPatient) {
       filteredEvents = filteredEvents.filter(e => e.patient_token.toLowerCase().includes(state.auditFilterPatient.toLowerCase()));
@@ -1380,7 +1374,6 @@
       filteredEvents = filteredEvents.filter(e => e.operational_mode === state.auditFilterMode);
     }
 
-    // Auto-select first event if none selected or selected is missing
     const selectedEvent = allEvents.find(e => e.event_id === state.selectedAuditEventId) || (filteredEvents.length > 0 ? filteredEvents[0] : null);
     if (selectedEvent) {
       state.selectedAuditEventId = selectedEvent.event_id;
@@ -1388,10 +1381,8 @@
       state.selectedAuditEventId = null;
     }
 
-    // Unique patient tokens for filter suggestion
     const uniqueTokens = Array.from(new Set(allEvents.map(e => e.patient_token)));
 
-    // Table rows HTML
     let tableBodyHtml = '';
     if (allEvents.length === 0) {
       tableBodyHtml = `
@@ -1444,7 +1435,6 @@
       }).join('');
     }
 
-    // Detail Panel HTML
     let detailHtml = '';
     if (!selectedEvent) {
       detailHtml = `
@@ -1459,10 +1449,8 @@
       const reasonLabel = (e.override_reason || 'None specified').replace(/_/g, ' ');
       const protoFloorStr = e.protocol_floor_level ? `Level ${e.protocol_floor_level}` : 'No Hard Floor';
       const effFloorStr = e.effective_safety_floor ? `Level ${e.effective_safety_floor}` : 'None';
-      const bedStr = e.system_bed_id ? `${e.system_bed_id} (${e.system_bed_type || 'General'})` : 'None / Awaiting';
 
       detailHtml = `
-        <!-- 1. Event Metadata -->
         <div class="aud-detail-sect">
           <div class="aud-detail-sect-title">
             <span>Event Identification</span>
@@ -1476,7 +1464,6 @@
           </div>
         </div>
 
-        <!-- 2. Clinician Decision -->
         <div class="aud-detail-sect" style="border-color:#C7D7FE; background:#F8FAFF;">
           <div class="aud-detail-sect-title" style="color:var(--primary);">
             <span>Clinician Decision</span>
@@ -1494,7 +1481,6 @@
           ` : ''}
         </div>
 
-        <!-- 3. System Snapshot at Event Time -->
         <div class="aud-detail-sect">
           <div class="aud-detail-sect-title"><span>System Recommendation Snapshot</span></div>
           <div class="aud-grid-2">
@@ -1505,7 +1491,6 @@
           </div>
         </div>
 
-        <!-- 4. Safety Context -->
         <div class="aud-detail-sect">
           <div class="aud-detail-sect-title"><span>Safety Floor Context</span></div>
           <div class="aud-grid-2">
@@ -1515,7 +1500,6 @@
           </div>
         </div>
 
-        <!-- 5. Risk Context -->
         <div class="aud-detail-sect">
           <div class="aud-detail-sect-title"><span>Risk of Waiting Snapshot</span></div>
           <div class="aud-grid-2">
@@ -1526,7 +1510,6 @@
           </div>
         </div>
 
-        <!-- 6. Version Trace -->
         <div class="aud-detail-sect">
           <div class="aud-detail-sect-title"><span>Immutable Engine Version Trace</span></div>
           <div class="aud-grid-2">
@@ -1539,7 +1522,6 @@
     }
 
     container.innerHTML = `
-      <!-- LEFT: AUDIT EVENTS TABLE -->
       <section class="aud-main-panel" aria-label="Session Clinician Audit Log">
         <div class="p-hdr">
           <div class="title">Session Clinician Audit</div>
@@ -1548,7 +1530,6 @@
           <span class="chip mono" style="font-size:10.5px;">User: TRIAGE_NURSE_01</span>
         </div>
 
-        <!-- Filter Controls -->
         <div class="aud-filter-bar">
           <div class="aud-filter-group">
             <label for="aud-sel-patient">Patient:</label>
@@ -1580,7 +1561,6 @@
           <button class="aud-btn-reset" id="btn-reset-audit-workspace">Reset Demo Actions</button>
         </div>
 
-        <!-- Table Container -->
         <div class="aud-table-container scroll">
           <table class="aud-table">
             <thead>
@@ -1600,7 +1580,6 @@
         </div>
       </section>
 
-      <!-- RIGHT: DETAIL INSPECTOR -->
       <section class="aud-detail-panel" aria-label="Audit Event Inspector">
         <div class="p-hdr">
           <div class="title">Audit Event Inspector</div>
@@ -1618,7 +1597,6 @@
       </section>
     `;
 
-    // Attach Listeners
     const selPatient = document.getElementById('aud-sel-patient');
     const selAction = document.getElementById('aud-sel-action');
     const selMode = document.getElementById('aud-sel-mode');
@@ -1643,9 +1621,7 @@
         renderAuditWorkspace();
       });
     }
-    if (btnReset) {
-      btnReset.addEventListener('click', handleResetAudit);
-    }
+    if (btnReset) btnReset.addEventListener('click', handleResetAudit);
     if (btnOpenCmd) {
       btnOpenCmd.addEventListener('click', () => {
         const tok = btnOpenCmd.dataset.token;
@@ -1659,6 +1635,180 @@
         renderAuditWorkspace();
       });
     });
+  }
+
+  // =========================================================================
+  // GOVERNANCE WORKSPACE CONTROLLER (Milestone 11H)
+  // =========================================================================
+
+  async function renderGovernanceWorkspace() {
+    const container = document.getElementById('governance-workspace');
+    if (!container) return;
+
+    if (!state.governanceData) {
+      try {
+        state.governanceData = await window.LISA_API.getGovernance();
+      } catch (err) {
+        container.innerHTML = `
+          <div class="state-banner error" style="width:100%;">
+            <span><b>Unable to load governance information.</b></span>
+            <button id="btn-retry-governance">Retry</button>
+          </div>
+        `;
+        const btn = document.getElementById('btn-retry-governance');
+        if (btn) btn.addEventListener('click', renderGovernanceWorkspace);
+        return;
+      }
+    }
+
+    const g = state.governanceData;
+    const implemented = g.implemented_prototype_controls || g.implemented_safeguards || [];
+    const prodReqs = g.unimplemented_production_requirements || [];
+    const excludedFeats = g.excluded_prioritization_features || [];
+    const chainSteps = g.human_accountability_chain || [];
+    const versions = g.model_and_rule_versions || [];
+    const reg = g.regulatory_design_assumptions || {};
+
+    const implementedHtml = implemented.map(item => `
+      <li class="gov-list-item">
+        <span class="gov-dot implemented"></span>
+        <span>${item}</span>
+      </li>
+    `).join('');
+
+    const prodHtml = prodReqs.map(item => `
+      <li class="gov-list-item">
+        <span class="gov-dot production"></span>
+        <span>${item}</span>
+      </li>
+    `).join('');
+
+    const tagsHtml = excludedFeats.map(f => `
+      <span class="gov-tag-excluded">${f.replace(/_/g, ' ')}</span>
+    `).join('');
+
+    const chainHtml = chainSteps.map(step => {
+      const isClin = step.includes('Human Clinician') || step.includes('Clinician Remains');
+      return `<div class="gov-chain-step ${isClin ? 'highlight' : ''}">${step}</div>`;
+    }).join('');
+
+    const verHtml = versions.map(v => `
+      <div class="gov-ver-cell">
+        <div class="gov-ver-k">${v.component}</div>
+        <div class="gov-ver-v">${v.version}</div>
+        <div class="gov-ver-desc">${v.scope}</div>
+      </div>
+    `).join('');
+
+    const regIndia = reg.india_focus || {
+      frameworks: 'Digital Personal Data Protection Act, 2023 (DPDP) & ABDM principles',
+      disclaimer: 'Prototype design assumption only. No DPDP compliance or ABDM certification is claimed.'
+    };
+    const regIntl = reg.international_expansion || {
+      frameworks: 'HIPAA (US), GDPR / EU AI Act (EU)',
+      disclaimer: 'Prototype design assumption only. No HIPAA, GDPR, or FDA clearance is claimed.'
+    };
+
+    container.innerHTML = `
+      <div class="gov-hdr-bar">
+        <div class="gov-title-group">
+          <div class="title">PRIVACY, SAFETY & GOVERNANCE</div>
+          <div class="sub">Prototype safeguards, anti-bias exclusions, human accountability, and production requirements.</div>
+        </div>
+        <div class="gov-status-pill">PROTOTYPE — NOT FOR CLINICAL USE</div>
+      </div>
+
+      <div class="gov-principles-grid">
+        <div class="gov-principle-card">
+          <div class="pk">Clinician in Control</div>
+          <div class="pv">Human decision remains authoritative within deterministic safety constraints.</div>
+        </div>
+        <div class="gov-principle-card">
+          <div class="pk">Deterministic Core</div>
+          <div class="pv">Risk evaluation and queue sequencing do not depend on generative LLM inference.</div>
+        </div>
+        <div class="gov-principle-card">
+          <div class="pk">Auditable</div>
+          <div class="pv">All clinician actions, reason codes, and model/rule engine versions are fully traceable.</div>
+        </div>
+        <div class="gov-principle-card">
+          <div class="pk">Simulated Data</div>
+          <div class="pv">Prototype uses tokenized simulated patient records; zero live patient data captured.</div>
+        </div>
+      </div>
+
+      <div class="gov-comparison-grid">
+        <div class="gov-col implemented">
+          <div class="gov-col-hdr">
+            <span>Implemented in Prototype</span>
+            <span style="font-size:9.5px; font-weight:700;">ACTIVE SAFEGUARDS</span>
+          </div>
+          <ul class="gov-list">
+            ${implementedHtml}
+          </ul>
+        </div>
+
+        <div class="gov-col production">
+          <div class="gov-col-hdr">
+            <span>Production Deployment Requirements</span>
+            <span style="font-size:9.5px; font-weight:700;">REQUIRED BEFORE DEPLOYMENT</span>
+          </div>
+          <ul class="gov-list">
+            ${prodHtml}
+          </ul>
+        </div>
+      </div>
+
+      <div class="gov-bottom-grid">
+        <div class="gov-section-card">
+          <div class="gov-card-title">
+            <span>Never Used for Prioritization</span>
+            <span style="font-size:9px; color:var(--ink-4);">ANTI-BIAS CONSTRAINT</span>
+          </div>
+          <div class="gov-tags-wrap">
+            ${tagsHtml}
+          </div>
+          <div style="font-size:10px; color:var(--ink-3); line-height:1.35; margin-top:2px;">
+            Strict data minimization: billing, caste, religion, socioeconomic, and payer variables are excluded by architectural design.
+          </div>
+        </div>
+
+        <div class="gov-section-card">
+          <div class="gov-card-title">
+            <span>Human Accountability & Fairness</span>
+            <span style="font-size:9px; color:var(--primary);">CLINICIAN AUTHORITY</span>
+          </div>
+          <div class="gov-chain-list">
+            ${chainHtml}
+          </div>
+          <div style="font-size:9.5px; color:var(--ink-3); border-top:1px solid var(--border-soft); padding-top:4px; margin-top:2px;">
+            *Production deployment requires continuous subgroup monitoring. Prototype makes no claim that bias is eliminated.
+          </div>
+        </div>
+
+        <div class="gov-section-card">
+          <div class="gov-card-title">
+            <span>Engine Version Registry</span>
+            <span style="font-size:9px; color:var(--ink-4);">DETERMINISTIC ENGINES</span>
+          </div>
+          <div class="gov-ver-grid">
+            ${verHtml}
+          </div>
+
+          <div class="gov-card-title" style="margin-top:4px;">
+            <span>Regulatory Design Assumptions</span>
+          </div>
+          <div class="gov-reg-box">
+            <div class="gov-reg-title">India Health Data Context</div>
+            <div>${regIndia.disclaimer}</div>
+          </div>
+          <div class="gov-reg-box">
+            <div class="gov-reg-title">International Expansion Context</div>
+            <div>${regIntl.disclaimer}</div>
+          </div>
+        </div>
+      </div>
+    `;
   }
 
   function renderPatientLoadingSkeleton(token) {
@@ -1682,9 +1832,7 @@
       </div>
     `;
     const btnRetry = document.getElementById('btn-retry-patient');
-    if (btnRetry) {
-      btnRetry.addEventListener('click', () => fetchAndRenderPatient(token));
-    }
+    if (btnRetry) btnRetry.addEventListener('click', () => fetchAndRenderPatient(token));
   }
 
   function renderEmptyPatientState() {
@@ -1727,9 +1875,7 @@
       </div>
     `;
     const btnRetry = document.getElementById('btn-retry-load');
-    if (btnRetry) {
-      btnRetry.addEventListener('click', () => loadData());
-    }
+    if (btnRetry) btnRetry.addEventListener('click', () => loadData());
   }
 
   function initScale() {
@@ -1748,28 +1894,23 @@
   function init() {
     initScale();
 
-    // Mode toggle buttons
     document.querySelectorAll('.mode-selector button').forEach(btn => {
-      btn.addEventListener('click', () => {
-        setMode(btn.dataset.mode);
-      });
+      btn.addEventListener('click', () => setMode(btn.dataset.mode));
     });
 
-    // Navigation rail buttons
     document.querySelectorAll('.nav .nav-item:not(.disabled)').forEach(item => {
       item.addEventListener('click', () => {
         const nav = item.dataset.nav;
-        if (nav === 'command' || nav === 'capacity' || nav === 'evidence' || nav === 'audit') {
+        if (nav === 'command' || nav === 'capacity' || nav === 'evidence' || nav === 'audit' || nav === 'governance') {
           switchWorkspace(nav);
         }
       });
     });
 
-    // Initial load
     loadData();
   }
 
-  window.LISA_WORKSTATION = { init, setMode, selectPatient, switchWorkspace, renderAuditWorkspace };
+  window.LISA_WORKSTATION = { init, setMode, selectPatient, switchWorkspace, renderAuditWorkspace, renderGovernanceWorkspace };
 
   document.addEventListener('DOMContentLoaded', init);
 })();
