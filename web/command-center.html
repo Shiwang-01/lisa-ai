@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="assets/queue.css"/>
   <link rel="stylesheet" href="assets/patient.css"/>
   <link rel="stylesheet" href="assets/decision.css"/>
+  <link rel="stylesheet" href="assets/capacity.css"/>
   <script src="assets/api.js" defer></script>
   <script src="assets/command-center.js" defer></script>
 </head>
@@ -79,7 +80,7 @@
           <span class="lbl">Command</span>
         </button>
 
-        <button class="nav-item disabled" data-nav="capacity" title="Available in next milestone" disabled>
+        <button class="nav-item" data-nav="capacity" title="Capacity Workspace">
           <span class="ico">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
               <path d="M3 21V10l9-6 9 6v11"/>
@@ -113,74 +114,82 @@
         <div style="flex:1;"></div>
       </nav>
 
-      <!-- MAIN WORKSPACE -->
+      <!-- MAIN WORKSPACE CONTAINER -->
       <main class="ws">
-        <!-- 1. LEFT: LIVE QUEUE -->
-        <section class="panel queue-panel" aria-label="Live Queue">
-          <div class="p-hdr">
-            <div class="title">Live Queue</div>
-            <div class="sub">Sorted by system rank · <span id="queue-count">--</span> patients</div>
-            <div class="spacer"></div>
-            <div style="display:flex; gap:6px;">
-              <span class="chip">Rank</span>
-              <span class="chip">Tier</span>
-              <span class="chip">Risk 60m</span>
+        <!-- COMMAND CENTER 3-PANEL VIEW -->
+        <div class="ws-grid" id="command-workspace">
+          <!-- 1. LEFT: LIVE QUEUE -->
+          <section class="panel queue-panel" aria-label="Live Queue">
+            <div class="p-hdr">
+              <div class="title">Live Queue</div>
+              <div class="sub">Sorted by system rank · <span id="queue-count">--</span> patients</div>
+              <div class="spacer"></div>
+              <div style="display:flex; gap:6px;">
+                <span class="chip">Rank</span>
+                <span class="chip">Tier</span>
+                <span class="chip">Risk 60m</span>
+              </div>
             </div>
-          </div>
 
-          <div class="queue-hdr">
-            <div class="th-num">#</div>
-            <div>TOKEN</div>
-            <div>DEMO</div>
-            <div>CHIEF COMPLAINT</div>
-            <div>TIER</div>
-            <div class="th-center">RISK · 60m</div>
-            <div class="th-num">WAIT</div>
-            <div class="th-num">RECHECK</div>
-          </div>
+            <div class="queue-hdr">
+              <div class="th-num">#</div>
+              <div>TOKEN</div>
+              <div>DEMO</div>
+              <div>CHIEF COMPLAINT</div>
+              <div>TIER</div>
+              <div class="th-center">RISK · 60m</div>
+              <div class="th-num">WAIT</div>
+              <div class="th-num">RECHECK</div>
+            </div>
 
-          <div class="queue-list scroll" id="queue-list" role="listbox" aria-label="Patient Queue">
-            <!-- Dynamically populated from API -->
-          </div>
+            <div class="queue-list scroll" id="queue-list" role="listbox" aria-label="Patient Queue">
+              <!-- Dynamically populated from API -->
+            </div>
 
-          <div class="queue-footer">
-            <span class="qf-legend">Simulated ED Capacity</span>
-            <span class="qf-item"><span class="sw" style="background:#B42318;"></span>Resus <b>1</b></span>
-            <span class="qf-item"><span class="sw" style="background:#C4471C;"></span>Monitored <b>2</b></span>
-            <span class="qf-item"><span class="sw" style="background:#B54708;"></span>General <b>3</b></span>
-            <span class="qf-item"><span class="sw" style="background:#175CD3;"></span>Fast Track <b>2</b></span>
-            <div class="spacer"></div>
-            <span style="font-size:10.5px; color:var(--ink-4); font-weight:600;">8 Total Spaces</span>
-          </div>
-        </section>
+            <div class="queue-footer">
+              <span class="qf-legend">Simulated ED Capacity</span>
+              <span class="qf-item"><span class="sw" style="background:#B42318;"></span>Resus <b>1</b></span>
+              <span class="qf-item"><span class="sw" style="background:#C4471C;"></span>Monitored <b>2</b></span>
+              <span class="qf-item"><span class="sw" style="background:#B54708;"></span>General <b>3</b></span>
+              <span class="qf-item"><span class="sw" style="background:#175CD3;"></span>Fast Track <b>2</b></span>
+              <div class="spacer"></div>
+              <span style="font-size:10.5px; color:var(--ink-4); font-weight:600;">8 Total Spaces</span>
+            </div>
+          </section>
 
-        <!-- 2. CENTER: SELECTED PATIENT DETAIL (11C) -->
-        <section class="panel" aria-label="Selected Patient Detail">
-          <div class="p-hdr">
-            <div class="title">Selected Patient</div>
-            <div class="sub">Command context</div>
-            <div class="spacer"></div>
-            <span class="chip" id="center-rank-chip" style="display:none;">Rank #--</span>
-            <span class="tier tier-c" id="center-tier-chip" style="display:none;">Tier --</span>
-          </div>
+          <!-- 2. CENTER: SELECTED PATIENT DETAIL (11C) -->
+          <section class="panel" aria-label="Selected Patient Detail">
+            <div class="p-hdr">
+              <div class="title">Selected Patient</div>
+              <div class="sub">Command context</div>
+              <div class="spacer"></div>
+              <span class="chip" id="center-rank-chip" style="display:none;">Rank #--</span>
+              <span class="tier tier-c" id="center-tier-chip" style="display:none;">Tier --</span>
+            </div>
 
-          <div class="patient-body scroll" id="selected-patient-container">
-            <!-- Dynamically rendered patient context -->
-          </div>
-        </section>
+            <div class="patient-body scroll" id="selected-patient-container">
+              <!-- Dynamically rendered patient context -->
+            </div>
+          </section>
 
-        <!-- 3. RIGHT: DECISION RAIL (11D) -->
-        <section class="panel" aria-label="Clinician Decision Panel">
-          <div class="p-hdr">
-            <div class="title">Decision</div>
-            <div class="spacer"></div>
-            <div class="sub mono" id="decision-token">—</div>
-          </div>
+          <!-- 3. RIGHT: DECISION RAIL (11D) -->
+          <section class="panel" aria-label="Clinician Decision Panel">
+            <div class="p-hdr">
+              <div class="title">Decision</div>
+              <div class="spacer"></div>
+              <div class="sub mono" id="decision-token">—</div>
+            </div>
 
-          <div class="decision-body scroll" id="decision-container">
-            <!-- Dynamically rendered decision engine & clinician controls -->
-          </div>
-        </section>
+            <div class="decision-body scroll" id="decision-container">
+              <!-- Dynamically rendered decision engine & clinician controls -->
+            </div>
+          </section>
+        </div>
+
+        <!-- CAPACITY 2-PANEL WORKSPACE (11E) -->
+        <div class="capacity-workspace" id="capacity-workspace" style="display:none;">
+          <!-- Dynamically rendered capacity board & awaiting list -->
+        </div>
       </main>
     </div>
   </div>

@@ -1,0 +1,291 @@
+/* LISA.ai — Capacity Workspace (Milestone 11E) */
+
+.capacity-workspace {
+  display: grid;
+  grid-template-columns: 1fr 360px;
+  gap: 10px;
+  height: 100%;
+  padding: 10px 12px;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* ---------- LEFT MAIN CAPACITY PANEL ---------- */
+.cap-main-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.cap-hdr-stats {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cap-hdr-stats .c-stat {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+.cap-hdr-stats .c-stat b {
+  font-family: var(--ff-mono);
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.cap-hdr-stats .c-stat.warn b {
+  color: var(--warn);
+}
+
+/* 8-Resource Grid (4 cols x 2 rows) */
+.cap-grid-container {
+  flex: 1;
+  padding: 12px;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.cap-card {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  user-select: none;
+  position: relative;
+  overflow: hidden;
+}
+
+.cap-card:hover {
+  background: #fff;
+  border-color: var(--primary);
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.08);
+  transform: translateY(-1px);
+}
+
+.cap-card:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+
+/* Card Top: Bed ID & Type Tag */
+.cap-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.cap-bed-id {
+  font-family: var(--ff-mono);
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.cap-bed-type {
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.cap-bed-type.resus {
+  background: #FEF3F2;
+  color: #B42318;
+  border: 1px solid #FECDCA;
+}
+
+.cap-bed-type.monitored {
+  background: #FFFAEB;
+  color: #B54708;
+  border: 1px solid #FEDF89;
+}
+
+.cap-bed-type.general {
+  background: #F0F9FF;
+  color: #026AA2;
+  border: 1px solid #B9E6FE;
+}
+
+.cap-bed-type.fast-track {
+  background: #EEF4FF;
+  color: #3538CD;
+  border: 1px solid #C7D7FE;
+}
+
+/* Card Middle: Assigned Patient */
+.cap-card-patient {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cap-pat-row-1 {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.cap-pat-token {
+  font-family: var(--ff-mono);
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--primary-2);
+}
+
+.cap-pat-rank {
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-3);
+}
+
+.cap-pat-row-2 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+}
+
+.cap-pat-risk {
+  font-family: var(--ff-mono);
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+/* Card Bottom: Compatibility Reason */
+.cap-card-note {
+  font-size: 10.5px;
+  color: var(--ink-3);
+  line-height: 1.3;
+  margin-top: 6px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Card Unassigned State */
+.cap-card.unassigned .cap-card-patient {
+  background: #F9FAFB;
+  border-style: dashed;
+  text-align: center;
+  padding: 14px 10px;
+  color: var(--ink-4);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+/* ---------- RIGHT AWAITING SUITABLE CAPACITY PANEL ---------- */
+.cap-awaiting-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.awaiting-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.awaiting-card {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--warn);
+  border-radius: 4px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  cursor: pointer;
+  transition: all 0.1s ease;
+  user-select: none;
+}
+
+.awaiting-card:hover {
+  background: #fff;
+  border-color: var(--primary);
+  border-left-color: var(--primary);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+}
+
+.awaiting-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.awaiting-token {
+  font-family: var(--ff-mono);
+  font-size: 13.5px;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.awaiting-recheck {
+  font-family: var(--ff-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--ink-3);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.awaiting-recheck.urgent {
+  color: var(--danger);
+}
+
+.awaiting-req {
+  font-size: 10.5px;
+  color: var(--ink-2);
+  font-weight: 600;
+}
+
+.awaiting-reason {
+  font-size: 10px;
+  color: var(--ink-3);
+  line-height: 1.3;
+}
+
+.awaiting-empty {
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--ink-4);
+  font-size: 12px;
+  font-style: italic;
+}

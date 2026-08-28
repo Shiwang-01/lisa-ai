@@ -1,24 +1,28 @@
 /**
- * LISA.ai — Nurse Command Center Workstation Controller (Milestones 11B, 11C, 11D)
+ * LISA.ai — Nurse Command Center Workstation Controller (Milestones 11B, 11C, 11D, 11E)
  * Manages live queue state, mode toggling, row selection, selected-patient context,
- * clinician decision actions, override modal, and audit preview.
+ * clinician decision actions, override modal, session audit, and the Capacity workspace.
  */
 
 (function () {
   const state = {
     mode: 'NORMAL',
+    activeWorkspace: 'command', // 'command' | 'capacity'
     summary: null,
     queue: [],
     auditEvents: [],
+    allocationData: null,
     selectedPatientToken: null,
     selectedPatientData: null,
     loading: false,
     patientLoading: false,
+    capacityLoading: false,
     actionPending: false,
     feedbackMessage: null,
     feedbackType: null, // 'success' | 'error'
     error: null,
-    patientError: null
+    patientError: null,
+    capacityError: null
   };
 
   let patientFetchVersion = 0;
@@ -39,15 +43,17 @@
     renderQueueLoadingState();
 
     try {
-      const [summary, queue, auditRes] = await Promise.all([
+      const [summary, queue, auditRes, allocRes] = await Promise.all([
         window.LISA_API.getSummary(state.mode),
         window.LISA_API.getQueue(state.mode),
-        window.LISA_API.getAudit().catch(() => ({ events: [] }))
+        window.LISA_API.getAudit().catch(() => ({ events: [] })),
+        window.LISA_API.getAllocation(state.mode).catch(() => null)
       ]);
 
       state.summary = summary;
       state.queue = queue;
       state.auditEvents = auditRes.events || [];
+      state.allocationData = allocRes;
 
       // Preserve selection if token exists in new queue, else select first patient
       const tokenExists = queue.some(p => p.patient_token === state.selectedPatientToken);
@@ -59,11 +65,15 @@
       renderHeader();
       renderQueue();
 
-      if (state.selectedPatientToken) {
-        fetchAndRenderPatient(state.selectedPatientToken);
+      if (state.activeWorkspace === 'capacity') {
+        renderCapacityWorkspace();
       } else {
-        renderEmptyPatientState();
-        renderEmptyDecisionState();
+        if (state.selectedPatientToken) {
+          fetchAndRenderPatient(state.selectedPatientToken);
+        } else {
+          renderEmptyPatientState();
+          renderEmptyDecisionState();
+        }
       }
     } catch (err) {
       console.error('Failed to load workstation data:', err);
@@ -91,6 +101,38 @@
     loadData();
   }
 
+  function switchWorkspace(workspace) {
+    if (state.activeWorkspace === workspace) return;
+    state.activeWorkspace = workspace;
+
+    const commandWs = document.getElementById('command-workspace');
+    const capacityWs = document.getElementById('capacity-workspace');
+
+    document.querySelectorAll('.nav .nav-item').forEach(item => {
+      if (item.dataset.nav === workspace) {
+        item.classList.add('active');
+      } else {
+        item.classList.remove('active');
+      }
+    });
+
+    if (workspace === 'capacity') {
+      if (commandWs) commandWs.style.display = 'none';
+      if (capacityWs) {
+        capacityWs.style.display = 'grid';
+        renderCapacityWorkspace();
+      }
+    } else {
+      if (capacityWs) capacityWs.style.display = 'none';
+      if (commandWs) {
+        commandWs.style.display = 'grid';
+        if (state.selectedPatientToken) {
+          fetchAndRenderPatient(state.selectedPatientToken);
+        }
+      }
+    }
+  }
+
   function selectPatient(token) {
     if (state.selectedPatientToken === token && state.selectedPatientData) return;
     state.selectedPatientToken = token;
@@ -111,6 +153,11 @@
     if (decisionToken) decisionToken.textContent = token;
 
     fetchAndRenderPatient(token);
+  }
+
+  function selectPatientAndSwitchToCommand(token) {
+    switchWorkspace('command');
+    selectPatient(token);
   }
 
   async function fetchAndRenderPatient(token) {
@@ -867,6 +914,164 @@
     }
   }
 
+  // =========================================================================
+  // CAPACITY WORKSPACE CONTROLLER (Milestone 11E)
+  // =========================================================================
+
+  async function renderCapacityWorkspace() {
+    const container = document.getElementById('capacity-workspace');
+    if (!container) return;
+
+    if (!state.allocationData) {
+      try {
+        state.allocationData = await window.LISA_API.getAllocation(state.mode);
+      } catch (err) {
+        container.innerHTML = `
+          <div class="state-banner error" style="grid-column: span 2;">
+            <span><b>Unable to load simulated resource assignments.</b></span>
+            <button id="btn-retry-capacity">Retry</button>
+          </div>
+        `;
+        const btn = document.getElementById('btn-retry-capacity');
+        if (btn) btn.addEventListener('click', renderCapacityWorkspace);
+        return;
+      }
+    }
+
+    const alloc = state.allocationData;
+    const beds = alloc.beds || [];
+    const allocations = alloc.allocations || [];
+    const waitingPatients = alloc.waiting_patients || [];
+
+    // Filter awaiting suitable space patients
+    const awaitingSuitable = waitingPatients.filter(p => p.allocation_status === 'WAITING_SUITABLE_BED');
+    const awaitingGeneralQueue = waitingPatients.filter(p => p.allocation_status === 'WAITING_QUEUE');
+
+    // Bed card mapper
+    const cardsHtml = beds.map(b => {
+      const pAlloc = allocations.find(a => a.bed_id === b.bed_id);
+      const bType = (b.bed_type || 'general').toLowerCase().replace(' ', '-');
+      const hasPatient = !!b.recommended_patient;
+      const patToken = b.recommended_patient || (pAlloc ? pAlloc.patient_token : null);
+      const patRank = b.priority_rank || (pAlloc ? pAlloc.priority_rank : null);
+      const patTier = b.queue_tier || (pAlloc ? pAlloc.queue_tier_code : null);
+      const tLet = tierLetter(patTier);
+      const riskStr = (pAlloc && pAlloc.current_risk != null && pAlloc.risk_60_min != null)
+        ? `${pAlloc.current_risk} → ${pAlloc.risk_60_min}`
+        : '';
+      const whyText = b.why || (pAlloc ? (pAlloc.allocation_reasons?.[0] || pAlloc.allocation_reason) : 'Compatible space assignment');
+
+      return `
+        <div class="cap-card ${hasPatient ? '' : 'unassigned'}" 
+             data-token="${patToken || ''}" 
+             tabindex="0"
+             role="button"
+             aria-label="${b.bed_id} ${b.bed_type} ${hasPatient ? 'Allocated to ' + patToken : 'Unassigned'}">
+          <div class="cap-card-top">
+            <span class="cap-bed-id">${b.bed_id}</span>
+            <span class="cap-bed-type ${bType}">${b.bed_type}</span>
+          </div>
+
+          <div class="cap-card-patient">
+            ${hasPatient ? `
+              <div class="cap-pat-row-1">
+                <span class="cap-pat-token">${patToken}</span>
+                <span class="cap-pat-rank">Rank #${patRank}</span>
+              </div>
+              <div class="cap-pat-row-2">
+                <span class="tier tier-${tLet.toLowerCase()}">Tier ${tLet}</span>
+                ${riskStr ? `<span class="cap-pat-risk mono">${riskStr}</span>` : ''}
+              </div>
+            ` : `
+              <div>UNASSIGNED</div>
+            `}
+          </div>
+
+          <div class="cap-card-note" title="${whyText}">
+            ${whyText}
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    // Awaiting suitable capacity list
+    let awaitingListHtml = '<div class="awaiting-empty">No patients currently awaiting a compatible simulated resource.</div>';
+    if (awaitingSuitable.length > 0) {
+      awaitingListHtml = awaitingSuitable.map(p => {
+        const tLet = tierLetter(p.queue_tier_code);
+        const reqStr = (p.acceptable_bed_types && p.acceptable_bed_types.length > 0)
+          ? p.acceptable_bed_types.join(', ')
+          : (p.preferred_bed_types?.join(', ') || 'Monitored / Resus');
+        const reasonText = p.allocation_reasons?.[0] || p.allocation_reason || 'Requires higher-capability placement';
+        const isUrgent = p.recheck_due_min <= 5;
+
+        return `
+          <div class="awaiting-card" data-token="${p.patient_token}" tabindex="0" role="button">
+            <div class="awaiting-top">
+              <span class="awaiting-token">${p.patient_token}</span>
+              <span class="awaiting-recheck mono ${isUrgent ? 'urgent' : ''}">
+                Reassess ${p.recheck_due_min}m
+              </span>
+            </div>
+            <div style="display:flex; align-items:center; justify-content:space-between;">
+              <span class="cap-pat-rank">Rank #${p.priority_rank}</span>
+              <span class="tier tier-${tLet.toLowerCase()}">Tier ${tLet}</span>
+            </div>
+            <div class="awaiting-req">Compatible: ${reqStr}</div>
+            <div class="awaiting-reason">${reasonText}</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    container.innerHTML = `
+      <!-- LEFT: 8 SIMULATED RESOURCE CARDS -->
+      <section class="cap-main-panel" aria-label="Simulated ED Resources">
+        <div class="p-hdr">
+          <div class="title">Simulated ED Spaces</div>
+          <div class="sub">8 Total Simulated Resources · Deterministic prototype placement</div>
+          <div class="spacer"></div>
+          <div class="cap-hdr-stats">
+            <span class="c-stat">Allocated: <b>${beds.filter(b => b.recommended_patient).length} / ${beds.length}</b></span>
+            <span class="c-stat ${awaitingSuitable.length > 0 ? 'warn' : ''}">Awaiting Suitable: <b>${awaitingSuitable.length}</b></span>
+            <span class="c-stat">General Queue: <b>${awaitingGeneralQueue.length}</b></span>
+          </div>
+        </div>
+
+        <div class="cap-grid-container">
+          ${cardsHtml}
+        </div>
+      </section>
+
+      <!-- RIGHT: AWAITING SUITABLE CAPACITY LIST -->
+      <section class="cap-awaiting-panel" aria-label="Awaiting Suitable Capacity">
+        <div class="p-hdr">
+          <div class="title">Awaiting Suitable Capacity</div>
+          <div class="spacer"></div>
+          <span class="chip" style="font-weight:700;">${awaitingSuitable.length} Patients</span>
+        </div>
+
+        <div class="awaiting-list scroll">
+          ${awaitingListHtml}
+        </div>
+      </section>
+    `;
+
+    // Attach click listeners to cards and awaiting rows to select patient and jump to Command
+    container.querySelectorAll('.cap-card[data-token], .awaiting-card[data-token]').forEach(el => {
+      const token = el.dataset.token;
+      if (token) {
+        el.addEventListener('click', () => selectPatientAndSwitchToCommand(token));
+        el.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            selectPatientAndSwitchToCommand(token);
+          }
+        });
+      }
+    });
+  }
+
   function renderPatientLoadingSkeleton(token) {
     const container = document.getElementById('selected-patient-container');
     if (!container) return;
@@ -962,11 +1167,21 @@
       });
     });
 
+    // Navigation rail buttons
+    document.querySelectorAll('.nav .nav-item:not(.disabled)').forEach(item => {
+      item.addEventListener('click', () => {
+        const nav = item.dataset.nav;
+        if (nav === 'command' || nav === 'capacity') {
+          switchWorkspace(nav);
+        }
+      });
+    });
+
     // Initial load
     loadData();
   }
 
-  window.LISA_WORKSTATION = { init, setMode, selectPatient };
+  window.LISA_WORKSTATION = { init, setMode, selectPatient, switchWorkspace };
 
   document.addEventListener('DOMContentLoaded', init);
 })();
