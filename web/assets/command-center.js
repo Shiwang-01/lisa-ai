@@ -445,7 +445,11 @@
       rawReasons.push({ text: `Safety floor active: ${g.reasons[0]}`, isGuardrail: true });
     }
     if (q.sequence_reasons) {
-      q.sequence_reasons.forEach(sr => rawReasons.push({ text: sr, isGuardrail: false }));
+      q.sequence_reasons.forEach(sr => {
+        if (!sr.toLowerCase().includes('baseline triage assessment')) {
+          rawReasons.push({ text: sr, isGuardrail: false });
+        }
+      });
     }
     if (r.risk_factors) {
       r.risk_factors.slice(0, 3).forEach(rf => rawReasons.push({ text: rf, isGuardrail: false }));
@@ -622,7 +626,7 @@
     if (res && res.bed_id) {
       resTitle = `${res.bed_id} — ${res.bed_type || 'General'}`;
       resBadgeHtml = '<span class="d-res-badge avail">ALLOCATED</span>';
-      resNote = res.compatibility_note || 'Assigned to compatible bed space';
+      resNote = res.compatibility_note || 'Compatible allocation under prototype rules';
     } else {
       resTitle = 'Awaiting Suitable Bed';
       resBadgeHtml = '<span class="d-res-badge hold">HOLD</span>';
@@ -888,9 +892,16 @@
         renderDecisionPanel(state.selectedPatientData);
       } catch (err) {
         submitBtn.disabled = false;
+        const eStr = (err.detail || err.message || '');
+        let blockedHtml = `<b>Override Blocked:</b> ${eStr}`;
+        if (eStr.includes('Level 1')) {
+          blockedHtml = `<b>Override blocked by active Level 1 safety floor.</b><br><span style="font-size:10.5px; font-weight:400;">This patient cannot be reduced below Tier A.</span>`;
+        } else if (eStr.includes('Level 2')) {
+          blockedHtml = `<b>Override blocked by active Level 2 safety floor.</b><br><span style="font-size:10.5px; font-weight:400;">This patient cannot be reduced below Tier B.</span>`;
+        }
         errBox.innerHTML = `
           <div class="modal-err-box">
-            <b>Override Blocked:</b> ${err.detail || err.message}
+            ${blockedHtml}
           </div>
         `;
       }
@@ -1026,7 +1037,7 @@
     container.innerHTML = `
       <section class="cap-main-panel" aria-label="Simulated ED Resources">
         <div class="p-hdr">
-          <div class="title">Simulated ED Spaces</div>
+          <div class="title">SIMULATED RESOURCE ASSIGNMENT</div>
           <div class="sub">8 Total Simulated Resources · Deterministic prototype placement</div>
           <div class="spacer"></div>
           <div class="cap-hdr-stats">
@@ -1108,7 +1119,7 @@
         <div class="ev-disclaimer-banner">
           <div class="ev-disclaimer-left">
             <span class="ev-badge">Simulation Result</span>
-            <span class="ev-disclaimer-text">Not clinical efficacy evidence · Evaluates sequencing order under identical attention capacity</span>
+            <span class="ev-disclaimer-text">Simulation only — not clinical efficacy evidence · Evaluates sequencing order under identical attention capacity</span>
           </div>
           <div class="ev-capacity-chip">
             SAME ATTENTION CAPACITY (${assump.available_attention_slots} slots · ${assump.simulation_horizon_min}m horizon)
@@ -1447,8 +1458,19 @@
       const e = selectedEvent;
       const timeStr = e.timestamp ? e.timestamp.replace('T', ' ').split('.')[0] : '—';
       const reasonLabel = (e.override_reason || 'None specified').replace(/_/g, ' ');
-      const protoFloorStr = e.protocol_floor_level ? `Level ${e.protocol_floor_level}` : 'No Hard Floor';
-      const effFloorStr = e.effective_safety_floor ? `Level ${e.effective_safety_floor}` : 'None';
+      const isHardFloor = (e.effective_safety_floor === 1 || e.effective_safety_floor === 2);
+      const protoFloorStr = e.protocol_floor_level ? `Level ${e.protocol_floor_level}` : 'None';
+      
+      let effectiveLabel = 'Effective Sequencing Context';
+      let effectiveVal = e.effective_safety_floor ? `Level ${e.effective_safety_floor}` : 'None';
+      let effectiveColor = 'var(--ink)';
+      let hardLockStr = 'None';
+      
+      if (isHardFloor) {
+        effectiveLabel = 'Effective Operational Safety Floor';
+        effectiveColor = 'var(--danger)';
+        hardLockStr = `Level ${e.effective_safety_floor} Engaged`;
+      }
 
       detailHtml = `
         <div class="aud-detail-sect">
@@ -1495,8 +1517,9 @@
           <div class="aud-detail-sect-title"><span>Safety Floor Context</span></div>
           <div class="aud-grid-2">
             <div class="aud-cell"><div class="aud-k">Initial Clinician Triage</div><div class="aud-v">Level ${e.initial_triage_level ?? '—'}</div></div>
-            <div class="aud-cell"><div class="aud-k">Protocol Floor</div><div class="aud-v">${protoFloorStr}</div></div>
-            <div class="aud-cell" style="grid-column: span 2;"><div class="aud-k">Effective Safety Floor</div><div class="aud-v" style="color:${e.effective_safety_floor ? 'var(--danger)' : 'var(--ink)'};">${effFloorStr}</div></div>
+            <div class="aud-cell"><div class="aud-k">Protocol Hard Floor</div><div class="aud-v">${protoFloorStr}</div></div>
+            <div class="aud-cell"><div class="aud-k">\${effectiveLabel}</div><div class="aud-v">\${effectiveVal}</div></div>
+            <div class="aud-cell"><div class="aud-k">Hard Safety Lock</div><div class="aud-v" style="color:\${effectiveColor}; font-weight:600;">\${hardLockStr}</div></div>
           </div>
         </div>
 
