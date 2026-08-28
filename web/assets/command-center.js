@@ -1518,8 +1518,8 @@
           <div class="aud-grid-2">
             <div class="aud-cell"><div class="aud-k">Initial Clinician Triage</div><div class="aud-v">Level ${e.initial_triage_level ?? '—'}</div></div>
             <div class="aud-cell"><div class="aud-k">Protocol Hard Floor</div><div class="aud-v">${protoFloorStr}</div></div>
-            <div class="aud-cell"><div class="aud-k">\${effectiveLabel}</div><div class="aud-v">\${effectiveVal}</div></div>
-            <div class="aud-cell"><div class="aud-k">Hard Safety Lock</div><div class="aud-v" style="color:\${effectiveColor}; font-weight:600;">\${hardLockStr}</div></div>
+            <div class="aud-cell"><div class="aud-k">${effectiveLabel}</div><div class="aud-v">${effectiveVal}</div></div>
+            <div class="aud-cell"><div class="aud-k">Hard Safety Lock</div><div class="aud-v" style="color:${effectiveColor}; font-weight:600;">${hardLockStr}</div></div>
           </div>
         </div>
 

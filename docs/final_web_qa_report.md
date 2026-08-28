@@ -42,25 +42,38 @@ This document contains the final QA evaluation for Milestone 11I of the LISA.ai 
 - **Reason Bloat:**
   - *Fix:* Filtered out the low-value generic reason "Emergency department baseline triage assessment" from the frontend reason list.
 
-## 3. Final Action Flow Test Validation
+## 3. Final Action Flow & Safety Verification
 
-✅ **1. Reset Audit** - Completed successfully.
-✅ **2. Select A125** - Loaded A125 patient state.
-✅ **3. Override A125 to Tier C** - Allowed. Patient successfully escalated/overridden to Tier C with reason "New Clinical Information".
-✅ **4. Select A135** - Loaded A135 patient state (Effective Safety Floor Level 1).
-✅ **5. Override A135 to Tier C** - Blocked. Backend correctly rejected downgrade below Tier A; frontend cleanly displayed the specific level 1 rejection message.
-✅ **6. Switch to SURGE_3X** - System reloaded with 60 patients and surge indicators.
-✅ **7. Select A135** - Verified A135 remained correctly blocked under Surge.
-✅ **8. Select A127** - Loaded A127 patient state.
-✅ **9. Escalate A127** - Action succeeded and properly recorded in session audit.
-✅ **10. View Audit / Capacity / Evidence / Gov** - All workspaces load and render correctly under 1440x900 and 1280x800.
+✅ **1. Reset Audit** - `POST /api/audit/reset` executed successfully.
+✅ **2. Select A125 in NORMAL mode:**
+   - Pre-action State: System Recommendation: **Tier C** (#13, Score 38, Risk 35 -> 49, Conf 82%, Recheck 15m). Clinician State: System recommendation active.
+   - Action: **OVERRIDE** -> Target **Tier B**, Reason: `CLINICAL_APPEARANCE`, Note: `"Patient appears more unwell than structured intake suggests."`
+   - Post-action State: System Recommendation remains **Tier C**, Decision displays **Override Active: Tier C → Tier B**, Recent actions log shows override record.
+   - Screenshot captured: `docs/final_web_command_A125_override.png`.
+✅ **3. Safety Regression (A135 & A124):**
+   - **A135 Blocked Downgrade:** Attempted override from Tier A to Tier B. Blocked by active Level 1 safety floor ("This patient cannot be reduced below Tier A."). No audit event created.
+   - **A124 Blocked Downgrade:** Attempted override from Tier B to Tier C. Blocked by active Level 2 safety floor ("This patient cannot be reduced below Tier B."). No audit event created.
+✅ **4. Audit Verification (A125):**
+   - Verified immutable audit snapshot in Audit workspace:
+     - Event ID: UUID
+     - Patient Token: `A125`
+     - Action: `OVERRIDE` (System: `Tier C` → Clinician: `Tier B`)
+     - Reason: `CLINICAL APPEARANCE`
+     - Note: `"Patient appears more unwell than structured intake suggests."`
+     - System Rank: `#13`, Sequence Score: `38`
+     - Risk of Wait: Current `35/100`, 60-min `49/100`, Confidence `82%`, Recheck `15 min`
+     - Total Audit Event Count: Exactly 1 (blocked actions did not generate audit events).
+✅ **5. SURGE_3X Dynamics & Escalation:**
+   - Switched to `SURGE_3X`, verified 60 waiting patients, selected `A127`, escalated priority, and verified state preservation across workspace switching.
+✅ **6. Workspace Coverage:**
+   - All 5 workspaces (`COMMAND`, `CAPACITY`, `EVIDENCE`, `AUDIT`, `GOVERNANCE`) verified across NORMAL and SURGE_3X modes.
 
 ## 4. Final Delivery Checklist
 - [x] Pytest suite passes (134/134)
 - [x] All 9 core backend modules remain zero-diff
 - [x] Streamlit app.py untouched
 - [x] Datasets untouched
-- [x] 9 required screenshots captured (1440x900 + 1280x800 context check)
-- [x] `docs/final_web_qa_report.md` generated
+- [x] All required screenshots captured (1440x900 + 1280x800 context check)
+- [x] `docs/final_web_qa_report.md` updated and verified
 
-*Milestone 11I Complete.*
+*Milestone 11I / 11I.1 Complete.*
