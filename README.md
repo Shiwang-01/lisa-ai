@@ -18,7 +18,7 @@ Clinician-controlled Emergency Department sequencing and Risk-of-Wait decision-s
 
 ---
 
-## 📌 The Problem
+## The Problem
 
 Emergency departments operate under severe structural constraints:
 - Limited physical spaces and specialized monitored beds
@@ -35,7 +35,7 @@ LISA adds a critical operational question:
 
 ---
 
-## ✨ What LISA Does
+## What LISA Does
 
 LISA implements a deterministic, multi-factor sequencing and capacity assignment pipeline:
 
@@ -54,7 +54,7 @@ LISA implements a deterministic, multi-factor sequencing and capacity assignment
 
 ---
 
-## 🚫 What LISA Does NOT Do
+## What LISA Does NOT Do
 
 To maintain strict clinical safety and operational honesty, LISA explicitly does **NOT**:
 
@@ -69,7 +69,7 @@ To maintain strict clinical safety and operational honesty, LISA explicitly does
 
 ---
 
-## 🩺 Nurse Workstation (5 Workspaces)
+## Nurse Workstation (5 Workspaces)
 
 The web frontend provides five dedicated operational workspaces:
 
@@ -95,7 +95,7 @@ Governance and safety specification matrix contrasting prototype controls agains
 
 ---
 
-## 👥 Key Demo Patient Scenarios
+## Key Demo Patient Scenarios
 
 ### Patient `A125` — Rising Risk-of-Wait
 - **Profile:** 68F, ambiguous epigastric complaint with profuse diaphoresis, documented diabetes.
@@ -120,7 +120,7 @@ Governance and safety specification matrix contrasting prototype controls agains
 
 ---
 
-## ⚡ Surge Mode (3× Volume)
+## Surge Mode (3× Volume)
 
 LISA includes an operational pressure toggle:
 - **Normal Mode:** 20 simulated waiting patients across 8 simulated ED resource spaces (2.5 patients/space).
@@ -132,7 +132,7 @@ LISA includes an operational pressure toggle:
 
 ---
 
-## 📊 Policy Simulation Evidence
+## Policy Simulation Evidence
 
 The Evidence workspace demonstrates the sequencing effect of dynamic prioritization under identical constraints:
 
@@ -150,7 +150,7 @@ The Evidence workspace demonstrates the sequencing effect of dynamic prioritizat
 
 ---
 
-## 🛡️ Clinician Control & Human Accountability
+## Clinician Control & Human Accountability
 
 LISA separates system recommendations from clinician authority:
 
@@ -163,7 +163,7 @@ LISA separates system recommendations from clinician authority:
 
 ---
 
-## 🏥 Simulated Capacity Model
+## Simulated Capacity Model
 
 LISA sequences placement across **8 simulated ED resource spaces**:
 
@@ -180,7 +180,7 @@ LISA sequences placement across **8 simulated ED resource spaces**:
 
 ---
 
-## 🏗️ System Architecture
+## System Architecture
 
 ```text
        Browser Nurse Workstation (HTML5 / Vanilla JS / CSS)
@@ -206,7 +206,7 @@ LISA sequences placement across **8 simulated ED resource spaces**:
 
 ---
 
-## 🚀 Run Locally
+## Run Locally
 
 ### 1. Install Dependencies
 ```bash
@@ -230,7 +230,7 @@ Open: [http://localhost:8501](http://localhost:8501)
 
 ---
 
-## 🧪 Automated Testing
+## Automated Testing
 
 Run the automated test suite:
 ```bash
@@ -251,7 +251,7 @@ Test coverage areas:
 
 ---
 
-## 🔒 Privacy, Anti-Bias & Governance
+## Privacy, Anti-Bias & Governance
 
 - **100% Synthetic Data:** All patient records (`A124`–`A183`) are simulated scenarios.
 - **Zero Personal Identifiers:** Excludes names, phone numbers, home addresses, government identifiers (e.g. Aadhaar), insurance IDs, and authentic EHR data.
@@ -270,7 +270,7 @@ Test coverage areas:
 
 ---
 
-## ⚠️ Production Boundary & Regulatory Disclaimers
+## Production Boundary & Regulatory Disclaimers
 
 This prototype establishes clear boundaries regarding real-world healthcare deployment:
 
@@ -281,21 +281,21 @@ This prototype establishes clear boundaries regarding real-world healthcare depl
 
 ---
 
-## 🌐 Hosted Demo
+## Hosted Demo
 
 - **URL:** [https://lisa-ai-7dtj.onrender.com/](https://lisa-ai-7dtj.onrender.com/)
 - **Infrastructure Note:** Hosted as a prototype demonstration on a free cloud instance. The instance may experience a 30–50 second cold start on initial access. Action and audit states are session-scoped and reset upon service restart.
 
 ---
 
-## 📦 Release
+## Release
 
 - **Current Release:** `v1.0.0-prototype`
 - **Freeze Policy:** Application source code is frozen. Any subsequent functional modifications will be released under a new version tag.
 
 ---
 
-## 📚 Documentation Index
+## Documentation Index
 
 - [Architecture & Invariants](docs/ARCHITECTURE.md)
 - [Release Notes (v1.0.0-prototype)](docs/RELEASE_NOTES_v1.0.0-prototype.md)
@@ -307,7 +307,7 @@ This prototype establishes clear boundaries regarding real-world healthcare depl
 
 ---
 
-## 📁 Repository Structure
+## Repository Structure
 
 ```text
 .
