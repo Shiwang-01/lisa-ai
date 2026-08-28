@@ -41,6 +41,12 @@ const LISA_API = {
     return await res.json();
   },
 
+  async getComparison(mode = 'NORMAL') {
+    const res = await fetch(`${this.baseUrl}/comparison?mode=${encodeURIComponent(mode)}`);
+    if (!res.ok) throw new Error(`Comparison API failed: ${res.status}`);
+    return await res.json();
+  },
+
   async acceptAction(patientToken, mode = 'NORMAL') {
     const res = await fetch(`${this.baseUrl}/actions/accept`, {
       method: 'POST',

@@ -1,28 +1,31 @@
 /**
- * LISA.ai — Nurse Command Center Workstation Controller (Milestones 11B, 11C, 11D, 11E)
+ * LISA.ai — Nurse Command Center Workstation Controller (Milestones 11B, 11C, 11D, 11E, 11F)
  * Manages live queue state, mode toggling, row selection, selected-patient context,
- * clinician decision actions, override modal, session audit, and the Capacity workspace.
+ * clinician decision actions, override modal, session audit, Capacity, and Evidence workspaces.
  */
 
 (function () {
   const state = {
     mode: 'NORMAL',
-    activeWorkspace: 'command', // 'command' | 'capacity'
+    activeWorkspace: 'command', // 'command' | 'capacity' | 'evidence'
     summary: null,
     queue: [],
     auditEvents: [],
     allocationData: null,
+    comparisonData: null,
     selectedPatientToken: null,
     selectedPatientData: null,
     loading: false,
     patientLoading: false,
     capacityLoading: false,
+    evidenceLoading: false,
     actionPending: false,
     feedbackMessage: null,
     feedbackType: null, // 'success' | 'error'
     error: null,
     patientError: null,
-    capacityError: null
+    capacityError: null,
+    evidenceError: null
   };
 
   let patientFetchVersion = 0;
@@ -43,17 +46,19 @@
     renderQueueLoadingState();
 
     try {
-      const [summary, queue, auditRes, allocRes] = await Promise.all([
+      const [summary, queue, auditRes, allocRes, compRes] = await Promise.all([
         window.LISA_API.getSummary(state.mode),
         window.LISA_API.getQueue(state.mode),
         window.LISA_API.getAudit().catch(() => ({ events: [] })),
-        window.LISA_API.getAllocation(state.mode).catch(() => null)
+        window.LISA_API.getAllocation(state.mode).catch(() => null),
+        window.LISA_API.getComparison(state.mode).catch(() => null)
       ]);
 
       state.summary = summary;
       state.queue = queue;
       state.auditEvents = auditRes.events || [];
       state.allocationData = allocRes;
+      state.comparisonData = compRes;
 
       // Preserve selection if token exists in new queue, else select first patient
       const tokenExists = queue.some(p => p.patient_token === state.selectedPatientToken);
@@ -67,6 +72,8 @@
 
       if (state.activeWorkspace === 'capacity') {
         renderCapacityWorkspace();
+      } else if (state.activeWorkspace === 'evidence') {
+        renderEvidenceWorkspace();
       } else {
         if (state.selectedPatientToken) {
           fetchAndRenderPatient(state.selectedPatientToken);
@@ -107,6 +114,7 @@
 
     const commandWs = document.getElementById('command-workspace');
     const capacityWs = document.getElementById('capacity-workspace');
+    const evidenceWs = document.getElementById('evidence-workspace');
 
     document.querySelectorAll('.nav .nav-item').forEach(item => {
       if (item.dataset.nav === workspace) {
@@ -116,14 +124,22 @@
       }
     });
 
+    // Hide all
+    if (commandWs) commandWs.style.display = 'none';
+    if (capacityWs) capacityWs.style.display = 'none';
+    if (evidenceWs) evidenceWs.style.display = 'none';
+
     if (workspace === 'capacity') {
-      if (commandWs) commandWs.style.display = 'none';
       if (capacityWs) {
         capacityWs.style.display = 'grid';
         renderCapacityWorkspace();
       }
+    } else if (workspace === 'evidence') {
+      if (evidenceWs) {
+        evidenceWs.style.display = 'grid';
+        renderEvidenceWorkspace();
+      }
     } else {
-      if (capacityWs) capacityWs.style.display = 'none';
       if (commandWs) {
         commandWs.style.display = 'grid';
         if (state.selectedPatientToken) {
@@ -321,10 +337,8 @@
             <stop offset="100%" stop-color="#4F46E5" stop-opacity="0.0"/>
           </linearGradient>
         </defs>
-        <!-- Threshold 75 line -->
         <line x1="${padX}" y1="${y75}" x2="${W - padX}" y2="${y75}" stroke="#FDA29B" stroke-width="1" stroke-dasharray="3,3" />
         <text x="${W - padX - 18}" y="${y75 - 2}" font-size="8" fill="#B42318" font-family="var(--ff-mono)" font-weight="600">75</text>
-        <!-- Area & line -->
         <path d="${areaD}" fill="url(#risk-grad)" />
         <path d="${pathD}" fill="none" stroke="#4F46E5" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
         ${circles}
@@ -436,7 +450,6 @@
       rawReasons.push({ text: r.uncertainty_factors[0], isGuardrail: false });
     }
 
-    // Deduplicate by text lowercase prefix
     const seen = new Set();
     const primaryReasons = [];
     for (const item of rawReasons) {
@@ -455,7 +468,6 @@
       </div>
     `).join('');
 
-    // History line
     const historyHtml = p.known_history ? `
       <div class="pat-history-row">
         <span class="hk">History:</span>
@@ -565,7 +577,6 @@
     const q = data.queue;
     const res = data.resource;
 
-    // Determine current clinician state from genuine session audit events
     const patientEvents = state.auditEvents.filter(e => e.patient_token === p.patient_token);
     const latestEvent = patientEvents.length > 0 ? patientEvents[patientEvents.length - 1] : null;
 
@@ -596,7 +607,6 @@
       }
     }
 
-    // Safety floor lock note for decision section
     const safetyLockNote = g.has_hard_floor ? `
       <div class="d-safety-indicator">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
@@ -604,11 +614,9 @@
       </div>
     ` : '';
 
-    // Reassessment box
     const isUrgent = r.recheck_due_min <= 5;
     const reassessText = `Reassess in ${r.recheck_due_min} min`;
 
-    // Resource recommendation box
     let resBadgeHtml = '';
     let resTitle = 'Awaiting Bed';
     let resNote = 'Queue position maintained on priority';
@@ -623,14 +631,12 @@
       resNote = (res && res.compatibility_note) ? res.compatibility_note : 'No immediate space; priority queue active';
     }
 
-    // Inline feedback banner if set
     const feedbackHtml = state.feedbackMessage ? `
       <div class="d-feedback ${state.feedbackType || 'success'}">
         <span>${state.feedbackMessage}</span>
       </div>
     ` : '';
 
-    // Recent actions (latest 1-2 for selected patient)
     let recentActionsHtml = '<div class="d-recent-empty">No clinician actions recorded this session.</div>';
     if (patientEvents.length > 0) {
       const displayEvents = patientEvents.slice(-2).reverse();
@@ -853,7 +859,6 @@
       </div>
     `;
 
-    // Set default target tier based on current system tier
     const targetSelect = document.getElementById('override-target-tier');
     if (targetSelect && q.queue_tier_code) {
       if (q.queue_tier_code.includes('Tier A')) targetSelect.value = 'Tier B';
@@ -943,11 +948,9 @@
     const allocations = alloc.allocations || [];
     const waitingPatients = alloc.waiting_patients || [];
 
-    // Filter awaiting suitable space patients
     const awaitingSuitable = waitingPatients.filter(p => p.allocation_status === 'WAITING_SUITABLE_BED');
     const awaitingGeneralQueue = waitingPatients.filter(p => p.allocation_status === 'WAITING_QUEUE');
 
-    // Bed card mapper
     const cardsHtml = beds.map(b => {
       const pAlloc = allocations.find(a => a.bed_id === b.bed_id);
       const bType = (b.bed_type || 'general').toLowerCase().replace(' ', '-');
@@ -994,7 +997,6 @@
       `;
     }).join('');
 
-    // Awaiting suitable capacity list
     let awaitingListHtml = '<div class="awaiting-empty">No patients currently awaiting a compatible simulated resource.</div>';
     if (awaitingSuitable.length > 0) {
       awaitingListHtml = awaitingSuitable.map(p => {
@@ -1057,7 +1059,6 @@
       </section>
     `;
 
-    // Attach click listeners to cards and awaiting rows to select patient and jump to Command
     container.querySelectorAll('.cap-card[data-token], .awaiting-card[data-token]').forEach(el => {
       const token = el.dataset.token;
       if (token) {
@@ -1070,6 +1071,294 @@
         });
       }
     });
+  }
+
+  // =========================================================================
+  // EVIDENCE / POLICY SIMULATION WORKSPACE (Milestone 11F)
+  // =========================================================================
+
+  async function renderEvidenceWorkspace() {
+    const container = document.getElementById('evidence-workspace');
+    if (!container) return;
+
+    if (!state.comparisonData) {
+      try {
+        state.comparisonData = await window.LISA_API.getComparison(state.mode);
+      } catch (err) {
+        container.innerHTML = `
+          <div class="state-banner error" style="grid-column: span 2;">
+            <span><b>Unable to load policy simulation.</b></span>
+            <button id="btn-retry-evidence">Retry</button>
+          </div>
+        `;
+        const btn = document.getElementById('btn-retry-evidence');
+        if (btn) btn.addEventListener('click', renderEvidenceWorkspace);
+        return;
+      }
+    }
+
+    const comp = state.comparisonData.comparison || {};
+    const assump = comp.simulation_assumptions || {
+      simulation_horizon_min: 120,
+      attention_slot_min: 5,
+      triage_nurses: 1,
+      available_attention_slots: 24,
+      patient_count: state.mode === 'SURGE_3X' ? 60 : 20
+    };
+    const sBase = comp.static_baseline || {};
+    const lisa = comp.lisa || {};
+    const diff = comp.differences || {};
+
+    const isSurge = state.mode === 'SURGE_3X';
+
+    container.innerHTML = `
+      <!-- LEFT: MAIN COMPARISON PANEL -->
+      <section class="ev-main-panel" aria-label="Policy Simulation Comparison">
+        <!-- Top Framing Banner -->
+        <div class="ev-disclaimer-banner">
+          <div class="ev-disclaimer-left">
+            <span class="ev-badge">Simulation Result</span>
+            <span class="ev-disclaimer-text">Not clinical efficacy evidence · Evaluates sequencing order under identical attention capacity</span>
+          </div>
+          <div class="ev-capacity-chip">
+            SAME ATTENTION CAPACITY (${assump.available_attention_slots} slots · ${assump.simulation_horizon_min}m horizon)
+          </div>
+        </div>
+
+        <div class="ev-metrics-body">
+          <!-- Policy Descriptions Header -->
+          <div class="ev-policy-headers">
+            <div class="ev-policy-card">
+              <div class="ev-policy-title">
+                <span>Static Baseline Policy</span>
+                <span style="font-size:9.5px; font-weight:600; color:var(--ink-4);">STANDARD SIMULATION</span>
+              </div>
+              <div class="ev-policy-sub">Initial Clinician Triage + First-In First-Out within triage level</div>
+            </div>
+            <div class="ev-policy-card lisa-card">
+              <div class="ev-policy-title">
+                <span>LISA Sequencing Policy</span>
+                <span style="font-size:9.5px; font-weight:700; color:var(--primary);">DYNAMIC PROTOCOL</span>
+              </div>
+              <div class="ev-policy-sub">Protocol Floors + Risk-of-Wait Trajectory + Reassessment Urgency</div>
+            </div>
+          </div>
+
+          <!-- Hero Metric: Dynamic Priority Inversions -->
+          <div class="ev-hero-metric highlight">
+            <div class="ev-hero-top">
+              <span class="ev-hero-title">Dynamic Priority Inversions</span>
+              <span class="chip" style="font-weight:700; color:var(--primary);">PRIMARY OPERATIONAL METRIC</span>
+            </div>
+            <div class="ev-hero-desc">
+              A dynamic-priority inversion occurs when a patient with greater current operational urgency is attended after a lower-priority patient under the simulated policy.
+            </div>
+            <div class="ev-hero-values">
+              <div class="ev-hero-val-card">
+                <span class="lbl">Static Baseline</span>
+                <span class="val">${sBase.lower_urgency_ahead_of_urgent_count ?? '—'}</span>
+              </div>
+              <div class="ev-hero-val-card lisa">
+                <span class="lbl">LISA Dynamic Policy</span>
+                <span class="val">${lisa.lower_urgency_ahead_of_urgent_count ?? '0'}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Paired Metrics List -->
+          <!-- 1. High Wait-Risk Reviewed <= 30 min -->
+          <div class="ev-row-item">
+            <div class="ev-row-hdr">
+              <span class="ev-row-label">High Wait-Risk Patients Reviewed ≤ 30 min</span>
+              <span style="font-size:10px; color:var(--ink-4); font-family:var(--ff-mono);">Risk-of-Wait ≥ 65</span>
+            </div>
+            <div class="ev-row-values">
+              <div class="ev-val-box">
+                <span>Static</span>
+                <span class="val-num">${sBase.high_wait_risk_reviewed_within_30_min ?? '—'} / ${sBase.high_wait_risk_total ?? '—'} (${sBase.high_wait_risk_reviewed_pct ?? '—'}%)</span>
+              </div>
+              <div class="ev-val-box lisa">
+                <span>LISA</span>
+                <span class="val-num">${lisa.high_wait_risk_reviewed_within_30_min ?? '—'} / ${lisa.high_wait_risk_total ?? '—'} (${lisa.high_wait_risk_reviewed_pct ?? '—'}%)</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 2. Average Reassessment Delay -->
+          <div class="ev-row-item">
+            <div class="ev-row-hdr">
+              <span class="ev-row-label">Average Reassessment Delay</span>
+              <span style="font-size:10px; color:var(--ink-4); font-family:var(--ff-mono);">Minutes past deadline</span>
+            </div>
+            <div class="ev-row-values">
+              <div class="ev-val-box">
+                <span>Static</span>
+                <span class="val-num">${sBase.average_reassessment_delay_min ?? '—'} min <span style="font-size:9.5px; font-weight:400; color:var(--ink-3);">(med ${sBase.median_reassessment_delay_min ?? '—'}m)</span></span>
+              </div>
+              <div class="ev-val-box lisa">
+                <span>LISA</span>
+                <span class="val-num">${lisa.average_reassessment_delay_min ?? '—'} min <span style="font-size:9.5px; font-weight:400; color:var(--ink-3);">(med ${lisa.median_reassessment_delay_min ?? '—'}m)</span></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 3. Reassessment Deadlines Missed (Honest presentation) -->
+          <div class="ev-row-item">
+            <div class="ev-row-hdr">
+              <span class="ev-row-label">Reassessment Deadlines Missed</span>
+              <span style="font-size:10px; color:var(--ink-4); font-family:var(--ff-mono);">Simulated capacity breach</span>
+            </div>
+            <div class="ev-row-values">
+              <div class="ev-val-box">
+                <span>Static</span>
+                <span class="val-num">${sBase.reassessment_deadlines_missed ?? '—'} / ${assump.patient_count} (${sBase.reassessment_deadlines_missed_pct ?? '—'}%)</span>
+              </div>
+              <div class="ev-val-box lisa">
+                <span>LISA</span>
+                <span class="val-num">${lisa.reassessment_deadlines_missed ?? '—'} / ${assump.patient_count} (${lisa.reassessment_deadlines_missed_pct ?? '—'}%)</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 4. Urgent Patients Reviewed <= 15 min -->
+          <div class="ev-row-item">
+            <div class="ev-row-hdr">
+              <span class="ev-row-label">Urgent Patients Reviewed ≤ 15 min</span>
+              <span style="font-size:10px; color:var(--ink-4); font-family:var(--ff-mono);">Tier A & Tier B cohort</span>
+            </div>
+            <div class="ev-row-values">
+              <div class="ev-val-box">
+                <span>Static</span>
+                <span class="val-num">${sBase.urgent_reviewed_within_15_min ?? '—'} / ${sBase.urgent_total ?? '—'} (${sBase.urgent_reviewed_pct ?? '—'}%)</span>
+              </div>
+              <div class="ev-val-box lisa">
+                <span>LISA</span>
+                <span class="val-num">${lisa.urgent_reviewed_within_15_min ?? '—'} / ${lisa.urgent_total ?? '—'} (${lisa.urgent_reviewed_pct ?? '—'}%)</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 5. Protocol-Floor Patients Reviewed <= 5 min -->
+          <div class="ev-row-item">
+            <div class="ev-row-hdr">
+              <span class="ev-row-label">Protocol-Floor Patients Reviewed ≤ 5 min</span>
+              <span style="font-size:10px; color:var(--ink-4); font-family:var(--ff-mono);">Level 1 & 2 floors</span>
+            </div>
+            <div class="ev-row-values">
+              <div class="ev-val-box">
+                <span>Static</span>
+                <span class="val-num">${sBase.protocol_floor_reviewed_within_5_min ?? '—'} / ${sBase.protocol_floor_total ?? '—'} (${sBase.protocol_floor_reviewed_pct ?? '—'}%)</span>
+              </div>
+              <div class="ev-val-box lisa">
+                <span>LISA</span>
+                <span class="val-num">${lisa.protocol_floor_reviewed_within_5_min ?? '—'} / ${lisa.protocol_floor_total ?? '—'} (${lisa.protocol_floor_reviewed_pct ?? '—'}%)</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 6. Horizon Coverage -->
+          <div class="ev-row-item">
+            <div class="ev-row-hdr">
+              <span class="ev-row-label">120-Minute Horizon Attention Coverage</span>
+              <span style="font-size:10px; color:var(--ink-4); font-family:var(--ff-mono);">24 available 5m slots</span>
+            </div>
+            <div class="ev-row-values">
+              <div class="ev-val-box">
+                <span>Static</span>
+                <span class="val-num">${sBase.reviewed_within_horizon ?? '—'} reviewed (${sBase.not_reviewed_within_horizon ?? '0'} unreviewed)</span>
+              </div>
+              <div class="ev-val-box lisa">
+                <span>LISA</span>
+                <span class="val-num">${lisa.reviewed_within_horizon ?? '—'} reviewed (${lisa.not_reviewed_within_horizon ?? '0'} unreviewed)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- RIGHT: INTERPRETATION & LIMITATIONS SIDEBAR -->
+      <aside class="ev-side-panel">
+        <!-- What Simulation Suggests -->
+        <div class="ev-side-card">
+          <div class="ev-side-title">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            What the Simulation Suggests
+          </div>
+          <ul class="ev-bullet-list">
+            <li class="ev-bullet-item">
+              <span class="ev-bullet-dot primary"></span>
+              <span>LISA dynamically shifts the priority sequence under identical attention capacity.</span>
+            </li>
+            <li class="ev-bullet-item">
+              <span class="ev-bullet-dot primary"></span>
+              <span>Dynamic sequencing eliminates simulated priority inversions in this cohort.</span>
+            </li>
+            <li class="ev-bullet-item">
+              <span class="ev-bullet-dot primary"></span>
+              <span>Under surge pressure, physical attention capacity limits dominate both policies.</span>
+            </li>
+          </ul>
+        </div>
+
+        <!-- What This Does NOT Prove -->
+        <div class="ev-side-card" style="border-left: 3px solid #F79009;">
+          <div class="ev-side-title" style="color:#B54708;">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#B54708" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            What This Does NOT Prove
+          </div>
+          <ul class="ev-bullet-list">
+            <li class="ev-bullet-item">
+              <span class="ev-bullet-dot" style="background:#B54708;"></span>
+              <span>Not prospective clinical validation or real-world patient trial.</span>
+            </li>
+            <li class="ev-bullet-item">
+              <span class="ev-bullet-dot" style="background:#B54708;"></span>
+              <span>Not clinical efficacy evidence or outcome guarantee.</span>
+            </li>
+            <li class="ev-bullet-item">
+              <span class="ev-bullet-dot" style="background:#B54708;"></span>
+              <span>Uses simulated patient cohort and simplified staffing assumptions.</span>
+            </li>
+            <li class="ev-bullet-item">
+              <span class="ev-bullet-dot" style="background:#B54708;"></span>
+              <span>Requires clinical validation and institutional approval before deployment.</span>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Simulation Assumptions -->
+        <div class="ev-side-card">
+          <div class="ev-side-title">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            Simulation Assumptions
+          </div>
+          <div class="ev-assump-grid">
+            <div class="ev-assump-cell">
+              <div class="ev-assump-k">Horizon</div>
+              <div class="ev-assump-v">${assump.simulation_horizon_min} min</div>
+            </div>
+            <div class="ev-assump-cell">
+              <div class="ev-assump-k">Slot Length</div>
+              <div class="ev-assump-v">${assump.attention_slot_min} min</div>
+            </div>
+            <div class="ev-assump-cell">
+              <div class="ev-assump-k">Triage Nurses</div>
+              <div class="ev-assump-v">${assump.triage_nurses} Nurse</div>
+            </div>
+            <div class="ev-assump-cell">
+              <div class="ev-assump-k">Available Slots</div>
+              <div class="ev-assump-v">${assump.available_attention_slots} Slots</div>
+            </div>
+            <div class="ev-assump-cell" style="grid-column: span 2;">
+              <div class="ev-assump-k">Capacity Invariant</div>
+              <div class="ev-assump-v" style="font-size:10px; font-weight:600; color:var(--ink-2);">
+                Identical resources modeled across both policies
+              </div>
+            </div>
+          </div>
+        </div>
+      </aside>
+    `;
   }
 
   function renderPatientLoadingSkeleton(token) {
@@ -1143,7 +1432,6 @@
     }
   }
 
-  // Scale the workstation cleanly to fit the viewport without page scrolling
   function initScale() {
     const app = document.querySelector('.app');
     if (!app) return;
@@ -1171,7 +1459,7 @@
     document.querySelectorAll('.nav .nav-item:not(.disabled)').forEach(item => {
       item.addEventListener('click', () => {
         const nav = item.dataset.nav;
-        if (nav === 'command' || nav === 'capacity') {
+        if (nav === 'command' || nav === 'capacity' || nav === 'evidence') {
           switchWorkspace(nav);
         }
       });

@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="assets/patient.css"/>
   <link rel="stylesheet" href="assets/decision.css"/>
   <link rel="stylesheet" href="assets/capacity.css"/>
+  <link rel="stylesheet" href="assets/evidence.css"/>
   <script src="assets/api.js" defer></script>
   <script src="assets/command-center.js" defer></script>
 </head>
@@ -90,7 +91,7 @@
           <span class="lbl">Capacity</span>
         </button>
 
-        <button class="nav-item disabled" data-nav="evidence" title="Available in next milestone" disabled>
+        <button class="nav-item" data-nav="evidence" title="Evidence & Policy Simulation">
           <span class="ico">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
               <path d="M3 3v18h18"/>
@@ -189,6 +190,11 @@
         <!-- CAPACITY 2-PANEL WORKSPACE (11E) -->
         <div class="capacity-workspace" id="capacity-workspace" style="display:none;">
           <!-- Dynamically rendered capacity board & awaiting list -->
+        </div>
+
+        <!-- EVIDENCE WORKSPACE (11F) -->
+        <div class="evidence-workspace" id="evidence-workspace" style="display:none;">
+          <!-- Dynamically rendered policy comparison & evidence analysis -->
         </div>
       </main>
     </div>

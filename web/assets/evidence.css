@@ -1,0 +1,336 @@
+/* LISA.ai — Evidence / Policy Simulation Workspace (Milestone 11F) */
+
+.evidence-workspace {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: 10px;
+  height: 100%;
+  padding: 10px 12px;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* ---------- LEFT MAIN EVIDENCE PANEL ---------- */
+.ev-main-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.ev-disclaimer-banner {
+  background: #FEF6EE;
+  border-bottom: 1px solid #F9DBAF;
+  padding: 8px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ev-disclaimer-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ev-badge {
+  background: #B54708;
+  color: #fff;
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 2px 6px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+.ev-disclaimer-text {
+  font-size: 11.5px;
+  color: #7A2E0E;
+  font-weight: 500;
+}
+
+.ev-capacity-chip {
+  background: #fff;
+  border: 1px solid #F9DBAF;
+  color: #7A2E0E;
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+/* Metric Rows Container */
+.ev-metrics-body {
+  flex: 1;
+  padding: 10px 14px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Policy Description Cards Header */
+.ev-policy-headers {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.ev-policy-card {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 8px 10px;
+}
+
+.ev-policy-card.lisa-card {
+  background: var(--primary-soft);
+  border-color: #C7D7FE;
+}
+
+.ev-policy-title {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ev-policy-card.lisa-card .ev-policy-title {
+  color: var(--primary);
+}
+
+.ev-policy-sub {
+  font-size: 10px;
+  color: var(--ink-3);
+  margin-top: 2px;
+}
+
+/* Primary Metric: Dynamic Inversion Highlight Box */
+.ev-hero-metric {
+  background: #F8F9FC;
+  border: 1.5px solid #D0D5DD;
+  border-radius: 6px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ev-hero-metric.highlight {
+  background: #F5F8FF;
+  border-color: #A4BCFD;
+}
+
+.ev-hero-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ev-hero-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.ev-hero-desc {
+  font-size: 10.5px;
+  color: var(--ink-3);
+  line-height: 1.35;
+}
+
+.ev-hero-values {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 2px;
+}
+
+.ev-hero-val-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 10px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.ev-hero-val-card.lisa {
+  border-color: var(--primary);
+  background: #EEF4FF;
+}
+
+.ev-hero-val-card .lbl {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--ink-3);
+}
+
+.ev-hero-val-card.lisa .lbl {
+  color: var(--primary);
+}
+
+.ev-hero-val-card .val {
+  font-family: var(--ff-mono);
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.ev-hero-val-card.lisa .val {
+  color: var(--primary);
+}
+
+/* Standard Paired Metric Rows */
+.ev-row-item {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ev-row-hdr {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.ev-row-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.ev-row-values {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.ev-val-box {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  font-size: 11px;
+}
+
+.ev-val-box.lisa {
+  background: #FAFBFF;
+  border-color: #D1E0FF;
+}
+
+.ev-val-box .val-num {
+  font-family: var(--ff-mono);
+  font-weight: 700;
+  font-size: 12.5px;
+  color: var(--ink);
+}
+
+.ev-val-box.lisa .val-num {
+  color: var(--primary);
+}
+
+/* ---------- RIGHT SIDEBAR (INTERPRETATION & LIMITATIONS) ---------- */
+.ev-side-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  gap: 8px;
+  overflow-y: auto;
+}
+
+.ev-side-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ev-side-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-2);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ev-bullet-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ev-bullet-item {
+  font-size: 11px;
+  color: var(--ink-2);
+  line-height: 1.35;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.ev-bullet-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--ink-3);
+  margin-top: 5px;
+  flex-shrink: 0;
+}
+
+.ev-bullet-dot.primary {
+  background: var(--primary);
+}
+
+.ev-assump-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  font-size: 10.5px;
+}
+
+.ev-assump-cell {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 6px;
+}
+
+.ev-assump-k {
+  color: var(--ink-3);
+  font-size: 9.5px;
+}
+
+.ev-assump-v {
+  font-family: var(--ff-mono);
+  font-weight: 700;
+  color: var(--ink);
+  margin-top: 1px;
+}
