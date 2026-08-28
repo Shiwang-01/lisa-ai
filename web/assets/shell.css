@@ -46,18 +46,12 @@
   white-space: nowrap;
 }
 
-.hdr .brand .logo {
-  width: 26px;
-  height: 26px;
-  border-radius: 5px;
-  background: var(--primary);
-  display: grid;
-  place-items: center;
-  color: #fff;
-  font-weight: 700;
-  font-size: 12px;
-  letter-spacing: 0.02em;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16);
+.hdr .brand .brand-app-icon {
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
+  flex-shrink: 0;
+  border-radius: 4px;
 }
 
 .hdr .brand .name {
