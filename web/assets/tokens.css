@@ -1,0 +1,91 @@
+/* LISA.ai — Design Tokens (Milestone 11B) */
+:root {
+  /* Surfaces */
+  --header: #101828;
+  --header-2: #1a2236;
+  --workspace: #F2F4F7;
+  --panel: #FFFFFF;
+  --panel-2: #FAFBFC;
+  --border: #EAECF0;
+  --border-strong: #D0D5DD;
+  --divider: #F2F4F7;
+
+  /* Text */
+  --ink: #101828;
+  --ink-2: #344054;
+  --ink-3: #667085;
+  --ink-4: #98A2B3;
+  --ink-inv: #F9FAFB;
+  --ink-inv-2: #D0D5DD;
+
+  /* Brand */
+  --primary: #4F46E5;
+  --primary-2: #4338CA;
+  --primary-soft: #EEF2FF;
+
+  /* Operational Tiers */
+  --tier-a: #B42318;      /* Restrained Red */
+  --tier-a-soft: #FEF3F2;
+  --tier-b: #C4471C;      /* Orange */
+  --tier-b-soft: #FEF6EE;
+  --tier-c: #B54708;      /* Amber */
+  --tier-c-soft: #FFFAEB;
+  --tier-d: #175CD3;      /* Muted Blue */
+  --tier-d-soft: #EFF8FF;
+  --tier-e: #475467;      /* Neutral Slate */
+  --tier-e-soft: #F2F4F7;
+
+  /* Semantic */
+  --danger: #B42318;
+  --danger-bg: #FEF3F2;
+  --warn: #B54708;
+  --warn-bg: #FFFAEB;
+  --ok: #067647;
+  --ok-bg: #ECFDF3;
+  --surge: #B54708;
+  --surge-bg: #FFFAEB;
+
+  /* Typography */
+  --ff-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --ff-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.05);
+  --shadow-row: 0 1px 0 rgba(16, 24, 40, 0.04), 0 0 0 1px var(--border);
+  --shadow-sel: 0 1px 2px rgba(79, 70, 229, 0.12), 0 0 0 1.5px var(--primary);
+
+  /* Radius */
+  --r-1: 2px;
+  --r-2: 4px;
+  --r-3: 6px;
+  --r-4: 8px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  font-family: var(--ff-sans);
+  color: var(--ink);
+  background: #0b1220;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "ss01", "cv11", "tnum";
+  font-size: 13px;
+  line-height: 1.35;
+  overflow: hidden;
+}
+
+.mono {
+  font-family: var(--ff-mono);
+  font-feature-settings: "tnum";
+  letter-spacing: -0.01em;
+}
+
+button {
+  font-family: inherit;
+}

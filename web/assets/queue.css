@@ -1,0 +1,328 @@
+/* LISA.ai — Live Queue & Workstation Panels (Milestone 11B) */
+
+/* ---------- QUEUE PANEL ---------- */
+.queue-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.queue-hdr {
+  display: grid;
+  grid-template-columns: 32px 58px 42px 1fr 48px 96px 54px 68px;
+  gap: 6px;
+  padding: 0 10px;
+  height: 30px;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel-2);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+  flex-shrink: 0;
+}
+
+.queue-hdr .th-num { text-align: right; }
+.queue-hdr .th-center { text-align: center; }
+
+.queue-list {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: #fff;
+}
+
+.qrow {
+  display: grid;
+  grid-template-columns: 32px 58px 42px 1fr 48px 96px 54px 68px;
+  gap: 6px;
+  padding: 0 10px;
+  min-height: 48px;
+  align-items: center;
+  border-bottom: 1px solid var(--divider);
+  border-left: 3px solid transparent;
+  cursor: pointer;
+  background: #fff;
+  transition: background 0.08s ease, border-left-color 0.08s ease;
+  user-select: none;
+}
+
+.qrow:hover {
+  background: #FAFBFC;
+}
+
+.qrow.selected {
+  background: var(--primary-soft) !important;
+  border-left-color: var(--primary);
+}
+
+.qrow:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+
+/* Tier accent borders on unselected hover */
+.qrow[data-tier="Tier A"]:hover:not(.selected) { border-left-color: var(--tier-a); }
+.qrow[data-tier="Tier B"]:hover:not(.selected) { border-left-color: var(--tier-b); }
+.qrow[data-tier="Tier C"]:hover:not(.selected) { border-left-color: var(--tier-c); }
+.qrow[data-tier="Tier D"]:hover:not(.selected) { border-left-color: var(--tier-d); }
+.qrow[data-tier="Tier E"]:hover:not(.selected) { border-left-color: var(--tier-e); }
+
+.r-rank {
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  color: var(--ink-4);
+  font-weight: 600;
+  text-align: right;
+}
+
+.r-token {
+  font-family: var(--ff-mono);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+
+.qrow.selected .r-token {
+  color: var(--primary-2);
+}
+
+.r-demo {
+  font-family: var(--ff-mono);
+  font-size: 11.5px;
+  color: var(--ink-3);
+  font-weight: 500;
+}
+
+.r-complaint {
+  font-size: 12.5px;
+  color: var(--ink-2);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-right: 4px;
+}
+
+.r-tier {
+  display: flex;
+  align-items: center;
+}
+
+.r-risk {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-family: var(--ff-mono);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.r-risk .arrow {
+  color: var(--ink-4);
+  font-weight: 400;
+}
+
+.r-risk .now {
+  color: var(--ink-3);
+}
+
+.r-risk .next {
+  color: var(--ink);
+}
+
+.r-risk.rising .next {
+  color: var(--tier-a);
+  font-weight: 700;
+}
+
+.r-risk.rising-mid .next {
+  color: var(--tier-b);
+  font-weight: 700;
+}
+
+.r-wait {
+  font-family: var(--ff-mono);
+  font-size: 11.5px;
+  color: var(--ink-3);
+  text-align: right;
+}
+
+.r-re {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  justify-content: flex-end;
+  font-family: var(--ff-mono);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.r-re .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--tier-c);
+}
+
+.r-re.urgent .dot {
+  background: var(--tier-a);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.r-re.urgent {
+  color: var(--tier-a);
+}
+
+.r-re .t {
+  color: var(--ink-2);
+}
+
+/* Queue Capacity Strip */
+.queue-footer {
+  height: 36px;
+  border-top: 1px solid var(--border);
+  background: var(--panel-2);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  gap: 12px;
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+.queue-footer .qf-legend {
+  color: var(--ink-4);
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.queue-footer .qf-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+.queue-footer .qf-item b {
+  font-family: var(--ff-mono);
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.queue-footer .qf-item .sw {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+
+.queue-footer .spacer {
+  flex: 1;
+}
+
+/* ---------- CENTER & RIGHT PLACEHOLDERS (11B) ---------- */
+.placeholder-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.placeholder-token-hdr {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.placeholder-token-hdr .token {
+  font-family: var(--ff-mono);
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.placeholder-token-hdr .badge {
+  font-size: 11px;
+  color: var(--ink-3);
+  font-weight: 500;
+}
+
+.placeholder-card {
+  border: 1px dashed var(--border-strong);
+  border-radius: 6px;
+  padding: 18px 14px;
+  background: var(--panel-2);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.placeholder-card .p-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.placeholder-card .p-desc {
+  font-size: 12.5px;
+  color: var(--ink-4);
+  line-height: 1.4;
+}
+
+.placeholder-skeleton-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.skeleton-box {
+  height: 48px;
+  background: #EAECF0;
+  border-radius: 4px;
+  opacity: 0.6;
+}
+
+/* Loading & Error States */
+.state-banner {
+  margin: 12px;
+  padding: 12px 14px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.state-banner.error {
+  background: var(--danger-bg);
+  border: 1px solid #FDA29B;
+  color: var(--danger);
+}
+
+.state-banner button {
+  background: #fff;
+  border: 1px solid #FDA29B;
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--danger);
+}

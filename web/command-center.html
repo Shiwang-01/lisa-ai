@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>LISA.ai · Nurse Command Center</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="assets/tokens.css"/>
+  <link rel="stylesheet" href="assets/shell.css"/>
+  <link rel="stylesheet" href="assets/queue.css"/>
+  <script src="assets/api.js" defer></script>
+  <script src="assets/command-center.js" defer></script>
+</head>
+<body data-mode="NORMAL">
+  <div class="stage">
+    <div class="app">
+      <!-- TOP HEADER -->
+      <header class="hdr">
+        <div class="brand">
+          <div class="logo">L</div>
+          <div class="name">LISA<span>.ai</span></div>
+          <div class="tag">Right Patient · Right Bed · Right Time</div>
+        </div>
+
+        <div class="mode-selector" role="tablist" aria-label="Operational Mode">
+          <button class="active" data-mode="NORMAL" role="tab" aria-selected="true">Normal</button>
+          <button class="surge" data-mode="SURGE_3X" role="tab" aria-selected="false">Surge 3×</button>
+        </div>
+
+        <span class="surge-chip"><span class="dot"></span>Surge 3× active</span>
+
+        <div class="metrics">
+          <div class="metric">
+            <div class="k">Waiting</div>
+            <div id="metric-waiting" class="v">--</div>
+          </div>
+          <div class="metric">
+            <div class="k">ED Spaces</div>
+            <div id="metric-spaces" class="v">8</div>
+          </div>
+          <div class="metric">
+            <div class="k">Reassess ≤ 5m</div>
+            <div id="metric-reassess5" class="v">--</div>
+          </div>
+          <div class="metric">
+            <div class="k">Avg Wait</div>
+            <div id="metric-avgwait" class="v">--</div>
+          </div>
+        </div>
+
+        <div class="spacer"></div>
+
+        <div class="disclaimer">PROTOTYPE · SIMULATION ONLY</div>
+
+        <div class="user">
+          <div class="avatar">TN</div>
+          <div>
+            <div style="color:#fff; font-weight:600;">TRIAGE_NURSE_01</div>
+            <div style="font-size:10px; color:#8a94ab;">Demo User</div>
+          </div>
+        </div>
+      </header>
+
+      <!-- LEFT NAVIGATION RAIL -->
+      <nav class="nav">
+        <button class="nav-item active" data-nav="command" title="Command Center">
+          <span class="ico">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="7" height="7" rx="1"/>
+              <rect x="14" y="3" width="7" height="7" rx="1"/>
+              <rect x="3" y="14" width="7" height="7" rx="1"/>
+              <rect x="14" y="14" width="7" height="7" rx="1"/>
+            </svg>
+          </span>
+          <span class="lbl">Command</span>
+        </button>
+
+        <button class="nav-item disabled" data-nav="capacity" title="Available in next milestone" disabled>
+          <span class="ico">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 21V10l9-6 9 6v11"/>
+              <path d="M9 21V13h6v8"/>
+            </svg>
+          </span>
+          <span class="lbl">Capacity</span>
+        </button>
+
+        <button class="nav-item disabled" data-nav="evidence" title="Available in next milestone" disabled>
+          <span class="ico">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 3v18h18"/>
+              <path d="M7 15l4-4 3 3 5-6"/>
+            </svg>
+          </span>
+          <span class="lbl">Evidence</span>
+        </button>
+
+        <button class="nav-item disabled" data-nav="audit" title="Available in next milestone" disabled>
+          <span class="ico">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
+              <path d="M14 3v6h6"/>
+              <path d="M9 14l2 2 4-4"/>
+            </svg>
+          </span>
+          <span class="lbl">Audit</span>
+        </button>
+
+        <div style="flex:1;"></div>
+      </nav>
+
+      <!-- MAIN WORKSPACE -->
+      <main class="ws">
+        <!-- 1. LEFT: LIVE QUEUE -->
+        <section class="panel queue-panel" aria-label="Live Queue">
+          <div class="p-hdr">
+            <div class="title">Live Queue</div>
+            <div class="sub">Sorted by system rank · <span id="queue-count">--</span> patients</div>
+            <div class="spacer"></div>
+            <div style="display:flex; gap:6px;">
+              <span class="chip">Rank</span>
+              <span class="chip">Tier</span>
+              <span class="chip">Risk 60m</span>
+            </div>
+          </div>
+
+          <div class="queue-hdr">
+            <div class="th-num">#</div>
+            <div>TOKEN</div>
+            <div>DEMO</div>
+            <div>CHIEF COMPLAINT</div>
+            <div>TIER</div>
+            <div class="th-center">RISK · 60m</div>
+            <div class="th-num">WAIT</div>
+            <div class="th-num">RECHECK</div>
+          </div>
+
+          <div class="queue-list scroll" id="queue-list" role="listbox" aria-label="Patient Queue">
+            <!-- Dynamically populated from API -->
+          </div>
+
+          <div class="queue-footer">
+            <span class="qf-legend">Simulated ED Capacity</span>
+            <span class="qf-item"><span class="sw" style="background:#B42318;"></span>Resus <b>1</b></span>
+            <span class="qf-item"><span class="sw" style="background:#C4471C;"></span>Monitored <b>2</b></span>
+            <span class="qf-item"><span class="sw" style="background:#B54708;"></span>General <b>3</b></span>
+            <span class="qf-item"><span class="sw" style="background:#175CD3;"></span>Fast Track <b>2</b></span>
+            <div class="spacer"></div>
+            <span style="font-size:10.5px; color:var(--ink-4); font-weight:600;">8 Total Spaces</span>
+          </div>
+        </section>
+
+        <!-- 2. CENTER: SELECTED PATIENT PLACEHOLDER (11B) -->
+        <section class="panel" aria-label="Selected Patient Detail">
+          <div class="p-hdr">
+            <div class="title">Selected Patient</div>
+            <div class="sub">Command context</div>
+            <div class="spacer"></div>
+            <span class="chip" id="center-rank-chip" style="display:none;">Rank #--</span>
+            <span class="tier tier-c" id="center-tier-chip" style="display:none;">Tier --</span>
+          </div>
+
+          <div class="placeholder-body scroll">
+            <div class="placeholder-token-hdr">
+              <div class="token" id="selected-token-heading">—</div>
+              <div class="badge">Patient Inspector Context</div>
+            </div>
+
+            <div class="placeholder-card">
+              <div class="p-title">Clinical Context Placeholder</div>
+              <div class="p-desc">
+                Detailed clinical profile, 5-point vitals, deterministic safety guardrails, and Risk-of-Wait trajectory curves will render here in <b>Milestone 11C</b>.
+              </div>
+              <div class="placeholder-skeleton-grid">
+                <div class="skeleton-box"></div>
+                <div class="skeleton-box"></div>
+                <div class="skeleton-box"></div>
+              </div>
+            </div>
+
+            <div class="placeholder-card">
+              <div class="p-title">Risk-of-Wait Trajectory Preview</div>
+              <div class="p-desc">
+                Explainable trajectory forecasting (Current, 30-min, 60-min, 120-min) and contributing risk factors.
+              </div>
+              <div style="height:44px; background:#EAECF0; border-radius:4px; opacity:0.5; margin-top:4px;"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 3. RIGHT: DECISION PLACEHOLDER (11B) -->
+        <section class="panel" aria-label="Clinician Decision Panel">
+          <div class="p-hdr">
+            <div class="title">Decision</div>
+            <div class="spacer"></div>
+            <div class="sub mono" id="decision-token">—</div>
+          </div>
+
+          <div class="placeholder-body scroll">
+            <div class="placeholder-card">
+              <div class="p-title">Decision Engine Placeholder</div>
+              <div class="p-desc">
+                Queue recommendation, bed allocation compatibility, reassessment timers, and clinician controls (Accept / Escalate / Override) will render here in <b>Milestone 11D</b>.
+              </div>
+              <div style="display:flex; flex-direction:column; gap:8px; margin-top:8px;">
+                <div style="height:36px; background:#EAECF0; border-radius:4px; opacity:0.6;"></div>
+                <div style="height:36px; background:#EAECF0; border-radius:4px; opacity:0.4;"></div>
+              </div>
+            </div>
+
+            <div class="placeholder-card">
+              <div class="p-title">Session Audit Trail</div>
+              <div class="p-desc">
+                Recent clinician decisions and session action history.
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+</body>
+</html>

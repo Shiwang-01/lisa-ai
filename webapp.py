@@ -8,8 +8,11 @@ Maintains existing clinical/operational Python modules as the single source of t
 """
 
 from typing import Any, Dict, List, Optional
+import os
 from fastapi import FastAPI, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 import pandas as pd
 
@@ -54,6 +57,24 @@ app.add_middleware(
 
 # Process-scoped session audit manager
 audit_manager = AuditTrailManager()
+
+# Static assets and Web Workstation mounting (Milestone 11B)
+WEB_DIR = os.path.join(os.path.dirname(__file__), "web")
+ASSETS_DIR = os.path.join(WEB_DIR, "assets")
+
+if os.path.exists(ASSETS_DIR):
+    app.mount("/assets", StaticFiles(directory=ASSETS_DIR), name="assets")
+
+
+@app.get("/", include_in_schema=False)
+@app.get("/command-center.html", include_in_schema=False)
+def serve_command_center():
+    """Serves the Nurse Command Center workstation web frontend."""
+    html_path = os.path.join(WEB_DIR, "command-center.html")
+    if os.path.exists(html_path):
+        return FileResponse(html_path)
+    return {"message": "Command center HTML template not found."}
+
 
 
 # =============================================================================

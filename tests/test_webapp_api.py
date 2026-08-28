@@ -327,3 +327,15 @@ def test_error_handling(client):
         }
     )
     assert res_bad_reason.status_code == 400
+
+
+def test_static_routes_serve_command_center(client):
+    """GET / serves the Nurse Command Center HTML template."""
+    res_root = client.get("/")
+    assert res_root.status_code == 200
+    assert "LISA.ai · Nurse Command Center" in res_root.text
+    assert "Live Queue" in res_root.text
+
+    res_tokens = client.get("/assets/tokens.css")
+    assert res_tokens.status_code == 200
+    assert "--primary" in res_tokens.text
