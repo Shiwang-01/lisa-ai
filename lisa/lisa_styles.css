@@ -1,0 +1,477 @@
+/* Custom Streamlit overrides for LISA.ai styling */
+
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+:root {
+  --bg: #F7F8FA;
+  --surface: #FFFFFF;
+  --surface-2: #FBFBFD;
+  --surface-3: #F2F3F7;
+  --border: #E5E7EC;
+  --border-strong: #D3D6DE;
+  --ink: #0B1020;
+  --ink-2: #2A2F3A;
+  --muted: #6B7280;
+  --muted-2: #9AA0AB;
+  --purple: #4C2FBF;
+  --purple-2: #6B4EE6;
+  --purple-ink: #2E1A78;
+  --purple-tint: #EFEBFB;
+  --purple-tint-2: #F6F3FE;
+  --red: #C0272D;
+  --red-2: #E23A3A;
+  --red-tint: #FBECEC;
+  --amber: #B7791F;
+  --amber-2: #D99A2B;
+  --amber-tint: #FCF3E0;
+  --green: #1F8A5B;
+  --green-tint: #E7F4EE;
+  --blue: #2A6FDB;
+  --blue-tint: #E7EFFB;
+
+  --shadow-sm: 0 1px 2px rgba(11,16,32,.04);
+  --shadow-md: 0 2px 6px rgba(11,16,32,.06), 0 1px 2px rgba(11,16,32,.04);
+  --shadow-lg: 0 8px 24px rgba(11,16,32,.08), 0 2px 6px rgba(11,16,32,.04);
+
+  --radius-sm: 4px;
+  --radius: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+}
+
+/* Hide default Streamlit decoration and header space to sit flush */
+[data-testid="stHeader"] {
+    display: none !important;
+}
+[data-testid="stDecoration"] {
+    display: none !important;
+}
+
+/* Base Body Styling */
+.stApp {
+    background-color: var(--bg) !important;
+    color: var(--ink) !important;
+    font-family: 'IBM Plex Sans', system-ui, -apple-system, sans-serif !important;
+    font-size: 13px !important;
+}
+
+/* Typography Overrides */
+h1, h2, h3, h4, h5, h6 {
+    font-family: 'IBM Plex Sans', sans-serif !important;
+    color: var(--ink) !important;
+    font-weight: 600 !important;
+    letter-spacing: -0.015em !important;
+}
+
+/* Custom Header Component styling */
+.topbar-custom {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 24px;
+    margin-top: -60px;
+    margin-bottom: 16px;
+    box-shadow: var(--shadow-sm);
+}
+
+.brand-custom {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.brand-logo-custom {
+    width: 32px;
+    height: 32px;
+    background: linear-gradient(135deg, var(--purple), var(--purple-2));
+    border-radius: 6px;
+    display: grid;
+    place-items: center;
+    color: white;
+    font-weight: 700;
+    font-size: 16px;
+}
+
+.brand-text-custom {
+    line-height: 1.25;
+}
+
+.brand-text-custom .name {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--ink);
+}
+
+.brand-text-custom .name span {
+    color: var(--purple);
+}
+
+.brand-text-custom .tagline {
+    font-size: 11px;
+    color: var(--muted);
+}
+
+.user-chip-custom {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.user-avatar-custom {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--purple-tint);
+    color: var(--purple-ink);
+    display: grid;
+    place-items: center;
+    font-size: 10px;
+    font-weight: 700;
+}
+
+/* Banner alert override */
+.disclaimer-strip {
+    background: var(--red-tint);
+    border: 1px solid #E7C6C7;
+    color: #8A1E23;
+    font-weight: 500;
+    padding: 8px 16px;
+    border-radius: var(--radius);
+    margin-bottom: 16px;
+    font-size: 12px;
+}
+
+.surge-banner-custom {
+    background: linear-gradient(0deg, #FEF6E5, #FDF1D4);
+    border: 1px solid #F0C97C;
+    color: #7A5310;
+    padding: 10px 16px;
+    border-radius: var(--radius-lg);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+}
+
+.surge-banner-custom .badge-custom {
+    background: var(--amber);
+    color: white;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 10.5px;
+}
+
+/* KPI Pressure Cards styling */
+.kpi-container-custom {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.kpi-card-custom {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 12px 14px;
+    box-shadow: var(--shadow-sm);
+    min-height: 80px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.kpi-card-custom .label-custom {
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+}
+
+.kpi-card-custom .value-custom {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--ink);
+    line-height: 1.1;
+    margin-top: 2px;
+}
+
+.kpi-card-custom.urgent .value-custom {
+    color: var(--red);
+}
+
+.kpi-card-custom.warn .value-custom {
+    color: var(--amber);
+}
+
+.kpi-card-custom.accent .value-custom {
+    color: var(--purple);
+}
+
+.kpi-card-custom .desc-custom {
+    font-size: 10.5px;
+    color: var(--muted);
+    margin-top: 4px;
+}
+
+/* Badges and Chips */
+.badge-tier-custom {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.badge-letter-custom {
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    display: inline-grid;
+    place-items: center;
+    font-weight: 700;
+    font-size: 11px;
+    font-family: 'IBM Plex Mono', monospace;
+    color: white;
+}
+
+.badge-letter-custom.A { background: var(--red); }
+.badge-letter-custom.B { background: var(--purple); }
+.badge-letter-custom.C { background: var(--amber); }
+.badge-letter-custom.D { background: #6B7280; }
+.badge-letter-custom.E { background: #4B7B5F; }
+
+/* Custom Container Cards */
+.card-custom {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    padding: 16px;
+    margin-bottom: 16px;
+}
+
+.card-custom-title {
+    font-size: 13.5px !important;
+    font-weight: 600 !important;
+    margin-bottom: 12px !important;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* Two-column decision split styling */
+.decision-split-custom {
+    display: grid;
+    grid-template-columns: 1fr 1.2fr;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    margin-bottom: 16px;
+    box-shadow: var(--shadow-sm);
+}
+
+.decision-split-custom .sys-panel {
+    background: var(--surface-2);
+    padding: 14px;
+    border-right: 1px solid var(--border);
+}
+
+.decision-split-custom .clinician-panel {
+    background: var(--surface);
+    padding: 14px;
+}
+
+.decision-split-custom .panel-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.decision-split-custom .clinician-panel .panel-label {
+    color: var(--purple);
+}
+
+.decision-split-custom .panel-value {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink);
+}
+
+/* Custom list items with tick markers */
+.list-tick-custom {
+    list-style: none;
+    padding-left: 0;
+    margin: 0;
+}
+
+.list-tick-custom li {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 12px;
+    padding: 6px 0;
+    border-bottom: 1px dashed var(--border);
+}
+
+.list-tick-custom li:last-child {
+    border-bottom: none;
+}
+
+.list-tick-custom li::before {
+    content: "•";
+    color: var(--purple);
+    font-weight: 700;
+}
+
+/* General Layout helpers */
+.mono-custom {
+    font-family: 'IBM Plex Mono', monospace !important;
+}
+
+.governance-hero-custom {
+    padding: 20px 24px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    background: radial-gradient(1200px 400px at 100% -100%, var(--purple-tint-2), transparent 60%), var(--surface);
+    box-shadow: var(--shadow-sm);
+    margin-bottom: 20px;
+}
+
+.governance-hero-custom h3 {
+    margin-top: 0;
+    font-size: 18px !important;
+    font-weight: 600 !important;
+}
+
+.governance-hero-custom .principles-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 8px 16px;
+    margin-top: 14px;
+}
+
+.governance-hero-custom .principle-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.governance-hero-custom .principle-item .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--purple);
+}
+
+/* Excluded item grid styling */
+.excluded-grid-custom {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.excluded-item-custom {
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface-2);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11.5px;
+    font-weight: 500;
+}
+
+.excluded-item-custom span.strike-custom {
+    color: var(--red);
+    text-decoration: line-through;
+    font-weight: 600;
+}
+
+.gov-panel-custom {
+    padding: 16px;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border);
+    background: var(--surface);
+    height: 100%;
+}
+
+.gov-panel-custom.impl {
+    border-color: #B7D9C6;
+}
+
+.gov-panel-custom.req {
+    border-color: #E7C6C7;
+}
+
+.gov-panel-custom .panel-header-custom {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+}
+
+.gov-panel-custom .panel-header-custom h4 {
+    margin: 0;
+    font-size: 13px !important;
+}
+
+.gov-panel-custom .panel-header-custom .badge-custom {
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 600;
+}
+
+.gov-panel-custom.impl .panel-header-custom .badge-custom {
+    background: var(--green-tint);
+    color: #14653F;
+}
+
+.gov-panel-custom.req .panel-header-custom .badge-custom {
+    background: var(--red-tint);
+    color: var(--red);
+}
+
+.gov-panel-custom li {
+    padding: 8px 0;
+    border-bottom: 1px dashed var(--border);
+    font-size: 11.5px;
+}
+
+.gov-panel-custom li:last-child {
+    border-bottom: none;
+}
+
+.gov-panel-custom.impl li::before {
+    content: "✓ ";
+    color: var(--green);
+    font-weight: 700;
+}
+
+.gov-panel-custom.req li::before {
+    content: "• ";
+    color: var(--muted);
+}
