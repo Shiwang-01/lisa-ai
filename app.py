@@ -144,17 +144,53 @@ with tab_ops:
     # Operational Pressure Panel (Milestone 6A)
     # ---------------------------------------------------------
     st.markdown("### 📊 Operational Pressure Panel")
-    p_col1, p_col2, p_col3, p_col4 = st.columns(4)
-    p_col1.metric("👥 Waiting Patients", surge_summary["patient_count"])
-    p_col2.metric("🛏️ Available Beds", f"{surge_summary['available_bed_count']}")
-    p_col3.metric("📈 Patients / Bed", f"{surge_summary['patients_per_bed']}×")
-    p_col4.metric("👩‍⚕️ Patients / Triage Nurse", f"{surge_summary['patients_per_triage_nurse']}")
-
-    p2_col1, p2_col2, p2_col3, p2_col4 = st.columns(4)
-    p2_col1.metric("🚨 Reassess ≤ 5 min", f"{surge_summary['reassess_within_5_min']} patients")
-    p2_col2.metric("⏱️ Reassess ≤ 15 min", f"{surge_summary['reassess_within_15_min']} patients")
-    p2_col3.metric("⏳ Awaiting Suitable Bed", f"{surge_summary['waiting_suitable_bed_count']} patients")
-    p2_col4.metric("🛡️ Hard Protocol Floors", f"{surge_summary['hard_protocol_floor_count']} patients")
+    st.markdown(
+        f"""
+        <div class="kpi-container-custom">
+            <div class="kpi-card-custom">
+                <div class="label-custom">Waiting Patients</div>
+                <div class="value-custom">{surge_summary['patient_count']}</div>
+                <div class="desc-custom">Local ED cohort</div>
+            </div>
+            <div class="kpi-card-custom">
+                <div class="label-custom">Available Beds</div>
+                <div class="value-custom">{surge_summary['available_bed_count']}</div>
+                <div class="desc-custom">{resus_beds} Resus · {monitored_beds} Mon · {general_beds} Gen · {fast_track_beds} FT</div>
+            </div>
+            <div class="kpi-card-custom">
+                <div class="label-custom">Patients / Bed</div>
+                <div class="value-custom">{surge_summary['patients_per_bed']}×</div>
+                <div class="desc-custom">Triage ratio</div>
+            </div>
+            <div class="kpi-card-custom">
+                <div class="label-custom">Triage Nurse</div>
+                <div class="value-custom">1</div>
+                <div class="desc-custom">Single-nurse simulation</div>
+            </div>
+            <div class="kpi-card-custom urgent">
+                <div class="label-custom">Reassess ≤ 5 min</div>
+                <div class="value-custom">{surge_summary['reassess_within_5_min']}</div>
+                <div class="desc-custom">High urgency window</div>
+            </div>
+            <div class="kpi-card-custom warn">
+                <div class="label-custom">Reassess ≤ 15 min</div>
+                <div class="value-custom">{surge_summary['reassess_within_15_min']}</div>
+                <div class="desc-custom">Cumulative window</div>
+            </div>
+            <div class="kpi-card-custom">
+                <div class="label-custom">Awaiting Bed</div>
+                <div class="value-custom">{surge_summary['waiting_suitable_bed_count']}</div>
+                <div class="desc-custom">Capacity-constrained</div>
+            </div>
+            <div class="kpi-card-custom accent">
+                <div class="label-custom">Hard Floors</div>
+                <div class="value-custom">{surge_summary['hard_protocol_floor_count']}</div>
+                <div class="desc-custom">Guardrail-locked minimums</div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
     st.markdown("---")
 
@@ -238,10 +274,54 @@ with tab_ops:
     )
     st.caption("⚠️ _Simulation recommendation only — clinician remains responsible for final prioritization._")
 
-    st.dataframe(
-        ranked_queue_df,
-        use_container_width=True,
-        hide_index=True
+    # Render Recommended ED Queue as Custom HTML Table
+    queue_rows = []
+    for row in queue_display_data:
+        tier_letter = row["Queue Tier"].split()[1] if len(row["Queue Tier"].split()) > 1 else "E"
+        queue_rows.append(
+            f"""
+            <tr>
+                <td class="rank">#{row['Rank']}</td>
+                <td class="pid">{row['Patient']}</td>
+                <td><span class="badge-letter-custom {tier_letter}">{tier_letter}</span> {row['Queue Tier']}</td>
+                <td class="num">{row['Sequence Score']}</td>
+                <td class="num">{row['Current Risk']}</td>
+                <td class="num">{row['60-min Risk']}</td>
+                <td>{row['Confidence']}</td>
+                <td>{row['Waiting']}</td>
+                <td><span class="reassess {'urgent' if 'min' in row['Reassess In'] and int(row['Reassess In'].split()[0]) <= 5 else 'soon' if 'min' in row['Reassess In'] and int(row['Reassess In'].split()[0]) <= 15 else ''}">{row['Reassess In']}</span></td>
+                <td>{row['Recommended Action']}</td>
+                <td><b>{row['Clinician Action']}</b></td>
+            </tr>
+            """
+        )
+    
+    st.markdown(
+        f"""
+        <div class="tbl-wrap mb-16">
+            <table class="tbl">
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>Patient</th>
+                        <th>Queue Tier</th>
+                        <th class="th-num">Score</th>
+                        <th class="th-num">Current Risk</th>
+                        <th class="th-num">60m Risk</th>
+                        <th>Confidence</th>
+                        <th>Waiting</th>
+                        <th>Reassess In</th>
+                        <th>Action</th>
+                        <th>Clinician Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {"".join(queue_rows)}
+                </tbody>
+            </table>
+        </div>
+        """,
+        unsafe_allow_html=True
     )
 
     st.markdown("---")
@@ -253,32 +333,87 @@ with tab_ops:
     st.markdown("**Capacity-aware simulation** using queue priority and resource compatibility.")
     st.caption("⚠️ _Allocation recommendations are simulated operational support only. Final placement remains a clinician decision._")
 
-    alloc_display_df = pd.DataFrame(allocation_results["allocated_beds"])
-    alloc_display_df.columns = ["Bed", "Type", "Recommended Patient", "Rank", "Score", "Queue Tier", "Why"]
-    st.dataframe(
-        alloc_display_df,
-        use_container_width=True,
-        hide_index=True
+    # Render bed allocation as Custom HTML Table
+    alloc_rows = []
+    for _, row in alloc_display_df.iterrows():
+        alloc_rows.append(
+            f"""
+            <tr class="bed-row-custom">
+                <td><b>{row['Bed']}</b></td>
+                <td>{row['Type']}</td>
+                <td class="pid">{row['Recommended Patient']}</td>
+                <td>{row['Rank']}</td>
+                <td class="num">{row['Score']}</td>
+                <td>{row['Queue Tier']}</td>
+                <td>{row['Why']}</td>
+            </tr>
+            """
+        )
+
+    st.markdown(
+        f"""
+        <div class="tbl-wrap mb-16">
+            <table class="tbl">
+                <thead>
+                    <tr>
+                        <th>Bed</th>
+                        <th>Type</th>
+                        <th>Patient</th>
+                        <th>Rank</th>
+                        <th class="th-num">Score</th>
+                        <th>Queue Tier</th>
+                        <th>Compatibility Rationale</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {"".join(alloc_rows)}
+                </tbody>
+            </table>
+        </div>
+        """,
+        unsafe_allow_html=True
     )
 
     st.markdown("#### ⏳ Patients Awaiting Capacity")
     st.caption("Simulation queue awaiting available compatible space or scheduled reassessment.")
 
-    waiting_display_data = []
-    for wp in allocation_results["waiting_patients"]:
-        waiting_display_data.append({
-            "Patient": wp["patient_token"],
-            "Rank": f"#{wp['priority_rank']}",
-            "Queue Tier": wp["queue_tier"],
-            "Current Risk": wp["current_risk"],
-            "Reassess In": f"{wp['recheck_due_min']} min",
-            "Allocation Status": wp["allocation_status"]
-        })
-    waiting_display_df = pd.DataFrame(waiting_display_data)
-    st.dataframe(
-        waiting_display_df,
-        use_container_width=True,
-        hide_index=True
+    # Render waiting patients custom table
+    waiting_rows = []
+    for row in waiting_display_data:
+        waiting_rows.append(
+            f"""
+            <tr>
+                <td class="pid">{row['Patient']}</td>
+                <td>{row['Rank']}</td>
+                <td>{row['Queue Tier']}</td>
+                <td class="num">{row['Current Risk']}</td>
+                <td>{row['Reassess In']}</td>
+                <td><span class="badge neutral">{row['Allocation Status']}</span></td>
+            </tr>
+            """
+        )
+
+    st.markdown(
+        f"""
+        <div class="tbl-wrap mb-16">
+            <table class="tbl">
+                <thead>
+                    <tr>
+                        <th>Patient</th>
+                        <th>Rank</th>
+                        <th>Queue Tier</th>
+                        <th class="th-num">Current Risk</th>
+                        <th>Reassessment Due</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {"".join(waiting_rows)}
+                </tbody>
+            </table>
+        </div>
+        """,
+        unsafe_allow_html=True
     )
 
     st.markdown("---")
@@ -313,54 +448,69 @@ with tab_ops:
       - **LISA Dynamic Sequencing:** Protocol guardrails + Risk-of-Wait trajectory + reassessment deadlines + uncertainty buffer + waiting time
     """)
 
-    # Side-by-side metric comparison cards
-    m_col1, m_col2, m_col3 = st.columns(3)
-    with m_col1:
-        st.metric(
-            label="🚨 Reassessment Deadlines Missed",
-            value=f"LISA: {lisa_metrics['reassessment_deadlines_missed']}",
-            delta=f"Static: {static_metrics['reassessment_deadlines_missed']} (Diff: {diffs['reassessment_deadline_breaches_difference']})",
-            delta_color="off"
-        )
-        st.metric(
-            label="⏱️ Avg Reassessment Delay",
-            value=f"LISA: {lisa_metrics['average_reassessment_delay_min']} min",
-            delta=f"Static: {static_metrics['average_reassessment_delay_min']} min (Diff: {diffs['average_delay_difference_min']} min)",
-            delta_color="off"
-        )
+    # Custom HTML Compare Table
+    def format_diff_val(val, inverse=False):
+        if val == 0:
+            return '<span class="neutral-delta">0</span>'
+        # For delays/breaches/inversions, lower is better (so negative diff is a win)
+        is_win = (val < 0) if not inverse else (val > 0)
+        color_class = "win" if is_win else "lose"
+        sign = "+" if val > 0 else ""
+        return f'<span class="{color_class}">{sign}{val}</span>'
 
-    with m_col2:
-        st.metric(
-            label="⚡ Urgent Patients Reviewed ≤ 15 min",
-            value=f"LISA: {lisa_metrics['urgent_reviewed_within_15_min']} / {lisa_metrics['urgent_total']}",
-            delta=f"Static: {static_metrics['urgent_reviewed_within_15_min']} / {static_metrics['urgent_total']} (Diff: {diffs['urgent_reviewed_15min_difference']:+d})",
-            delta_color="off"
-        )
-        st.metric(
-            label="📈 High Wait-Risk Reviewed ≤ 30 min",
-            value=f"LISA: {lisa_metrics['high_wait_risk_reviewed_within_30_min']} / {lisa_metrics['high_wait_risk_total']}",
-            delta=f"Static: {static_metrics['high_wait_risk_reviewed_within_30_min']} / {static_metrics['high_wait_risk_total']} (Diff: {diffs['high_wait_risk_reviewed_30min_difference']:+d})",
-            delta_color="off"
-        )
-
-    with m_col3:
-        st.metric(
-            label="🔄 Dynamic-Priority Inversions",
-            value=f"LISA: {lisa_metrics['lower_urgency_ahead_of_urgent_count']}",
-            delta=f"Static: {static_metrics['lower_urgency_ahead_of_urgent_count']} (Diff: {diffs['priority_inversion_difference']})",
-            delta_color="off"
-        )
-        st.metric(
-            label="🛡️ Protocol Floors Reviewed ≤ 5 min",
-            value=f"LISA: {lisa_metrics['protocol_floor_reviewed_within_5_min']} / {lisa_metrics['protocol_floor_total']}",
-            delta=f"Static: {static_metrics['protocol_floor_reviewed_within_5_min']} / {static_metrics['protocol_floor_total']} (Diff: {diffs['protocol_floor_reviewed_5min_difference']:+d})",
-            delta_color="off"
-        )
-
-    st.caption(
-        f"📊 **Attention Coverage:** Both policies reviewed {lisa_metrics['reviewed_within_horizon']} / {assumptions['patient_count']} patients "
-        f"within {assumptions['simulation_horizon_min']} min using the same {assumptions['available_attention_slots']} available slots."
-    )
+    comp_table_html = f"""
+    <div class="tbl-wrap mb-16">
+        <table class="tbl compare-table">
+            <thead>
+                <tr>
+                    <th>Operations Performance Metric</th>
+                    <th>Static Baseline (ESI + FIFO)</th>
+                    <th>LISA Dynamic (Risk-of-Wait)</th>
+                    <th>Simulated Difference</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="metric-name">Reassessment Deadlines Breached</td>
+                    <td>{static_metrics['reassessment_deadlines_missed']} ({static_metrics['reassessment_deadlines_missed_pct']}%)</td>
+                    <td>{lisa_metrics['reassessment_deadlines_missed']} ({lisa_metrics['reassessment_deadlines_missed_pct']}%)</td>
+                    <td>{format_diff_val(diffs['reassessment_deadline_breaches_difference'])}</td>
+                </tr>
+                <tr>
+                    <td class="metric-name">Average Reassessment Delay</td>
+                    <td>{static_metrics['average_reassessment_delay_min']} min</td>
+                    <td>{lisa_metrics['average_reassessment_delay_min']} min</td>
+                    <td>{format_diff_val(diffs['average_delay_difference_min'])}</td>
+                </tr>
+                <tr>
+                    <td class="metric-name">Urgent (Tier A/B) Reviewed ≤ 15 min</td>
+                    <td>{static_metrics['urgent_reviewed_within_15_min']} / {static_metrics['urgent_total']} ({static_metrics['urgent_reviewed_pct']}%)</td>
+                    <td>{lisa_metrics['urgent_reviewed_within_15_min']} / {lisa_metrics['urgent_total']} ({lisa_metrics['urgent_reviewed_pct']}%)</td>
+                    <td>{format_diff_val(diffs['urgent_reviewed_15min_difference'], inverse=True)}</td>
+                </tr>
+                <tr>
+                    <td class="metric-name">High Wait-Risk Reviewed ≤ 30 min</td>
+                    <td>{static_metrics['high_wait_risk_reviewed_within_30_min']} / {static_metrics['high_wait_risk_total']} ({static_metrics['high_wait_risk_reviewed_pct']}%)</td>
+                    <td>{lisa_metrics['high_wait_risk_reviewed_within_30_min']} / {lisa_metrics['high_wait_risk_total']} ({lisa_metrics['high_wait_risk_reviewed_pct']}%)</td>
+                    <td>{format_diff_val(diffs['high_wait_risk_reviewed_30min_difference'], inverse=True)}</td>
+                </tr>
+                <tr>
+                    <td class="metric-name">Dynamic-Priority Inversions</td>
+                    <td>{static_metrics['lower_urgency_ahead_of_urgent_count']} inversions</td>
+                    <td>{lisa_metrics['lower_urgency_ahead_of_urgent_count']} inversions</td>
+                    <td>{format_diff_val(diffs['priority_inversion_difference'])}</td>
+                </tr>
+                <tr>
+                    <td class="metric-name">Protocol Floors Reviewed ≤ 5 min</td>
+                    <td>{static_metrics['protocol_floor_reviewed_within_5_min']} / {static_metrics['protocol_floor_total']}</td>
+                    <td>{lisa_metrics['protocol_floor_reviewed_within_5_min']} / {lisa_metrics['protocol_floor_total']}</td>
+                    <td>{format_diff_val(diffs['protocol_floor_reviewed_5min_difference'], inverse=True)}</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    """
+    st.markdown(comp_table_html, unsafe_allow_html=True)
 
     with st.expander("🔍 Patient-Level Simulation Details", expanded=False):
         patient_sim_data = []
@@ -472,24 +622,35 @@ with tab_ops:
     if patient_floor["triggered"]:
         floor_lvl = patient_floor["floor_level"]
         urgency_label = urgency_names.get(floor_lvl, "Emergent")
-        st.error(f"**Protocol Floor:** Level {floor_lvl} — {urgency_label}")
-
-        st.markdown("**Triggered Rules:**")
-        for r_id, reason in zip(patient_floor["rule_ids"], patient_floor["reasons"]):
-            st.markdown(f"• **{r_id}** — {reason}")
-
-        st.markdown("**Status:**")
-        st.markdown(
-            f"🔒 **Hard safety floor active.** Future LISA scoring may escalate this patient "
-            f"but cannot downgrade them below **Level {floor_lvl}**."
-        )
+        
+        rules_html = "".join([f"<li>Rule <b>{r_id}</b> — {reason}</li>" for r_id, reason in zip(patient_floor["rule_ids"], patient_floor["reasons"])])
+        
+        guardrail_html = f"""
+        <div class="safety-floor mb-16">
+            <div class="lock">🔒</div>
+            <div class="txt">
+                <div class="title">Hard Protocol Safety Floor Level {floor_lvl} Triggered ({urgency_label})</div>
+                <div class="desc">Locked minimum priority level. Queue Sequencer cannot prioritize this patient below Tier {'A' if floor_lvl == 1 else 'B'}.</div>
+            </div>
+        </div>
+        <div class="card-custom mb-16">
+            <div class="card-custom-title">🔒 Triggered Protocol Guardrail Rules</div>
+            <ul class="list-tick-custom">
+                {rules_html}
+            </ul>
+        </div>
+        """
+        st.markdown(guardrail_html, unsafe_allow_html=True)
     else:
-        st.success("**Protocol Floor:** No Hard Floor")
         st.markdown(
-            "No hard protocol rule triggered from currently available simulated information.\n\n"
-            "_This does NOT mean the patient is safe or low risk. Further risk-of-wait assessment "
-            "will be performed by later modules._"
+            """
+            <div class="alert success mb-16">
+                <span>✓ <b>Protocol Floor:</b> No hard physiological floor triggered. Priority is dynamically determined by Risk-of-Wait trajectory.</span>
+            </div>
+            """,
+            unsafe_allow_html=True
         )
+
     # Risk of Waiting Section (Milestone 3)
     # ---------------------------------------------------------
     st.markdown("---")
@@ -499,40 +660,52 @@ with tab_ops:
 
     # Protocol Floor Priority Banner over Breach Clock
     if has_hard_floor:
-        st.error(
-            f"🚨 **Protocol Floor Active (Level {patient_floor['floor_level']})** — "
-            f"Hard safety guardrail takes precedence over waiting projections. "
-            f"**Reassessment Due: {patient_risk['recheck_due_min']} min**",
-            icon="🚨"
+        st.markdown(
+            f"""
+            <div class="alert danger mb-16">
+                <span>🚨 <b>Protocol Floor Active (Level {patient_floor['floor_level']}):</b> Hard safety guardrail takes precedence over waiting projections. Reassessment Due: <b>{patient_risk['recheck_due_min']} min</b></span>
+            </div>
+            """,
+            unsafe_allow_html=True
         )
 
-    # Risk trajectory scores
-    row_col1, row_col2, row_col3, row_col4 = st.columns(4)
-    row_col1.metric("Current Risk", f"{patient_risk['current_risk']} / 100")
-    row_col2.metric("30 min Wait", f"{patient_risk['risk_30_min']} / 100")
-    row_col3.metric("60 min Wait", f"{patient_risk['risk_60_min']} / 100")
-    row_col4.metric("120 min Wait", f"{patient_risk['risk_120_min']} / 100")
-
-    meta_col1, meta_col2, meta_col3, meta_col4 = st.columns(4)
-
-    meta_col1.metric("Risk Band", patient_risk["risk_band"])
-    meta_col2.metric("Confidence", f"{patient_risk['confidence']}%")
-
-    # Risk Breach Clock display logic: Protocol floor takes visual precedence
+    # Risk Breach Clock display logic
     if has_hard_floor and patient_risk["time_to_breach_min"] != 0:
-        meta_col3.metric("Risk Breach Clock", "Secondary Metric")
-        meta_col3.caption("Protocol floor already requires urgent reassessment")
+        breach_val = "Secondary"
     elif patient_risk["time_to_breach_min"] == 0:
-        meta_col3.metric("Risk Breach Clock", "⚠️ Breached (0 min)")
-        meta_col3.caption("Already at/above breach threshold")
+        breach_val = "⚠️ Breached"
     elif patient_risk["time_to_breach_min"] is not None:
-        meta_col3.metric("Risk Breach Clock", f"~{patient_risk['time_to_breach_min']} min")
-        meta_col3.caption("Estimated threshold breach")
+        breach_val = f"~{patient_risk['time_to_breach_min']} min"
     else:
-        meta_col3.metric("Risk Breach Clock", ">120 min")
-        meta_col3.caption("No breach in 2h horizon")
+        breach_val = ">120 min"
 
-    meta_col4.metric("Reassessment Due", f"{patient_risk['recheck_due_min']} min")
+    st.markdown(
+        f"""
+        <div class="grid-4 mb-16">
+            <div class="kpi-card-custom accent">
+                <div class="label-custom">Current Wait Risk</div>
+                <div class="value-custom">{patient_risk['current_risk']} <span class="text-xs">/ 100</span></div>
+                <div class="desc-custom">Band: {patient_risk['risk_band']}</div>
+            </div>
+            <div class="kpi-card-custom">
+                <div class="label-custom">60 min Projected</div>
+                <div class="value-custom">{patient_risk['risk_60_min']} <span class="text-xs">/ 100</span></div>
+                <div class="desc-custom">30m: {patient_risk['risk_30_min']} | 120m: {patient_risk['risk_120_min']}</div>
+            </div>
+            <div class="kpi-card-custom">
+                <div class="label-custom">Risk Breach Clock</div>
+                <div class="value-custom">{breach_val}</div>
+                <div class="desc-custom">Confidence: {patient_risk['confidence']}%</div>
+            </div>
+            <div class="kpi-card-custom urgent">
+                <div class="label-custom">Reassessment Due</div>
+                <div class="value-custom">{patient_risk['recheck_due_min']} <span class="text-xs">min</span></div>
+                <div class="desc-custom">Simulated reassessment window</div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
     st.caption("⚠️ **Safety Notice:** Risk Breach Clock is a simulation threshold heuristic, NOT a safe-wait recommendation. Always adhere to Reassessment Due deadlines.")
 
@@ -621,37 +794,53 @@ with tab_ops:
     # Lookup selected patient in ranked_queue
     patient_ranked = next(p for p in ranked_queue if p["patient_token"] == selected_token)
 
-    q_col1, q_col2, q_col3, q_col4 = st.columns(4)
-    q_col1.metric("Priority Rank", f"#{patient_ranked['priority_rank']} / {total_patients}")
-    q_col2.metric("Operational Queue Tier", patient_ranked["queue_tier"])
-    q_col3.metric("Sequence Score", f"{patient_ranked['sequence_score']} / 100")
-    q_col4.metric("Recommended Action", patient_ranked["recommended_queue_action"])
-
-    # Operational Safety Floor Breakdown
     init_lvl = patient_ranked.get("initial_triage_level")
     proto_lvl = patient_ranked.get("protocol_floor_level")
     eff_floor = patient_ranked.get("effective_safety_floor")
     eff_src = patient_ranked.get("effective_safety_floor_source")
 
-    sf_col1, sf_col2, sf_col3 = st.columns(3)
-    sf_col1.metric("Initial Clinician Triage", f"Level {init_lvl}" if init_lvl else "Not recorded")
-    sf_col2.metric("Protocol Guardrail", f"Level {proto_lvl}" if proto_lvl else "No hard floor")
     if eff_floor:
         if eff_src == "CLINICIAN_TRIAGE":
-            eff_label = f"Level {eff_floor} (Clinician triage takes precedence)"
+            eff_label = f"Level {eff_floor} (Clinician precedence)"
         elif eff_src == "PROTOCOL_GUARDRAIL":
-            eff_label = f"Level {eff_floor} (Protocol guardrail safety floor)"
+            eff_label = f"Level {eff_floor} (Protocol guardrail)"
         elif eff_src == "BOTH":
-            eff_label = f"Level {eff_floor} (Clinician & protocol concordant)"
+            eff_label = f"Level {eff_floor} (Concordant)"
         else:
             eff_label = f"Level {eff_floor}"
     else:
         eff_label = "No safety floor active"
-    sf_col3.metric("Effective Operational Safety Floor", eff_label)
+
+    st.markdown(
+        f"""
+        <div class="grid-4 mb-16">
+            <div class="kpi-card-custom accent">
+                <div class="label-custom">Priority Rank</div>
+                <div class="value-custom">#{patient_ranked['priority_rank']} <span class="text-xs">/ {total_patients}</span></div>
+                <div class="desc-custom">Effective Score: {patient_ranked['sequence_score']}</div>
+            </div>
+            <div class="kpi-card-custom">
+                <div class="label-custom">Queue Tier</div>
+                <div class="value-custom">{patient_ranked['queue_tier']}</div>
+                <div class="desc-custom">Safety Floor: {eff_label}</div>
+            </div>
+            <div class="kpi-card-custom">
+                <div class="label-custom">Initial Clinician Triage</div>
+                <div class="value-custom">Level {init_lvl if init_lvl else '—'}</div>
+                <div class="desc-custom">Triage input</div>
+            </div>
+            <div class="kpi-card-custom">
+                <div class="label-custom">Recommended Action</div>
+                <div class="value-custom" style="font-size: 16px; font-weight:700; margin-top:8px;">{patient_ranked['recommended_queue_action']}</div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
     st.markdown("#### 🔍 Why this patient is prioritized here:")
-    for reason in patient_ranked["sequence_reasons"]:
-        st.markdown(f"- {reason}")
+    reasons_html = "".join([f"<li>{reason}</li>" for reason in patient_ranked["sequence_reasons"]])
+    st.markdown(f"<ul class='list-tick-custom mb-16'>{reasons_html}</ul>", unsafe_allow_html=True)
 
     with st.expander("🛠️ Technical Sequencing Details & Machine Codes"):
         st.write(f"- **Tier Category:** `{patient_ranked['queue_tier_code']}` ({patient_ranked['queue_tier_name']})")
@@ -669,27 +858,49 @@ with tab_ops:
     # Lookup selected patient in allocation_results
     patient_alloc = next(p for p in allocation_results["patient_allocations"] if p["patient_token"] == selected_token)
 
-    r_col1, r_col2, r_col3 = st.columns(3)
-
     if patient_alloc["allocation_status"] == STATUS_ALLOCATED:
-        r_col1.metric("Allocation Status", "✅ Allocated")
-        r_col2.metric("Recommended Bed", f"{patient_alloc['bed_id']} — {patient_alloc['bed_type']}")
-        r_col3.metric("Minimum Resource Need", patient_alloc["minimum_resource_level"])
-
-        st.success(f"**Operational Placement:** {patient_alloc['allocation_reason']}")
-        st.markdown("#### 🔍 Clinical Compatibility Rationale:")
-        for reason in patient_alloc["allocation_reasons"]:
-            st.markdown(f"- {reason}")
+        alloc_status_label = "✅ Allocated"
+        alloc_detail = f"{patient_alloc['bed_id']} — {patient_alloc['bed_type']}"
+        alloc_note = f"Minimum Resource Need: {patient_alloc['minimum_resource_level']}"
+        alloc_alert_class = "success"
     else:
-        r_col1.metric("Allocation Status", f"⏳ {patient_alloc['allocation_status']}")
-        r_col2.metric("Recommended Bed Types", " / ".join(patient_alloc["preferred_bed_types"]))
-        r_col3.metric("Reassessment Deadline", f"{patient_alloc['recheck_due_min']} min")
+        alloc_status_label = f"⏳ {patient_alloc['allocation_status']}"
+        alloc_detail = " / ".join(patient_alloc["preferred_bed_types"])
+        alloc_note = f"Reassessment Deadline: {patient_alloc['recheck_due_min']} min"
+        alloc_alert_class = "warn"
 
-        st.warning(f"**Operational Status:** {patient_alloc['allocation_reason']}")
-        st.markdown("#### 🔍 Clinical Compatibility Profile:")
-        for reason in patient_alloc["allocation_reasons"]:
-            st.markdown(f"- {reason}")
-        st.caption("⚠️ _Unallocated status does NOT imply waiting is safe. Mandatory clinical reassessment deadline remains active._")
+    st.markdown(
+        f"""
+        <div class="grid-3 mb-16">
+            <div class="kpi-card-custom">
+                <div class="label-custom">Allocation Status</div>
+                <div class="value-custom">{alloc_status_label}</div>
+            </div>
+            <div class="kpi-card-custom">
+                <div class="label-custom">Target Bed / Types</div>
+                <div class="value-custom" style="font-size:16px; font-weight:700; margin-top:8px;">{alloc_detail}</div>
+            </div>
+            <div class="kpi-card-custom">
+                <div class="label-custom">Operational Constraint</div>
+                <div class="value-custom" style="font-size:14px; font-weight:700; margin-top:10px;">{alloc_note}</div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    st.markdown(
+        f"""
+        <div class="alert {alloc_alert_class} mb-16">
+            <span><b>Allocation Output:</b> {patient_alloc['allocation_reason']}</span>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    st.markdown("#### 🔍 Clinical Compatibility Profile:")
+    alloc_reasons_html = "".join([f"<li>{reason}</li>" for reason in patient_alloc["allocation_reasons"]])
+    st.markdown(f"<ul class='list-tick-custom mb-16'>{alloc_reasons_html}</ul>", unsafe_allow_html=True)
 
     with st.expander("🛠️ Technical Resource Compatibility Details"):
         st.write(f"- **Preferred Bed Types:** `{', '.join(patient_alloc['preferred_bed_types'])}`")
@@ -706,20 +917,34 @@ with tab_ops:
 
     latest_p_action = st.session_state.audit_manager.get_latest_action_for_patient(selected_token)
 
-    ca_col1, ca_col2 = st.columns(2)
-    with ca_col1:
-        st.markdown(f"**System Queue Recommendation:** `{patient_ranked['queue_tier']}`")
-    with ca_col2:
-        if latest_p_action:
-            act_type = latest_p_action["action"]
-            if act_type == ACTION_ACCEPT:
-                st.info(f"**Current Clinician State:** ✅ Recommendation Accepted (`{latest_p_action['clinician_selected_tier']}`)")
-            elif act_type == ACTION_OVERRIDE:
-                st.warning(f"**Current Clinician State:** ⚠️ Override Active (`{latest_p_action['clinician_selected_tier']}`) — Reason: `{latest_p_action['override_reason']}`")
-            elif act_type == ACTION_ESCALATE:
-                st.warning(f"**Current Clinician State:** ⚡ Escalation Active (`{latest_p_action['clinician_selected_tier']}`)")
+    # System vs Clinician state formatted as a split card
+    if latest_p_action:
+        act_type = latest_p_action["action"]
+        if act_type == ACTION_ACCEPT:
+            clin_state_html = f"✅ Accepted ({latest_p_action['clinician_selected_tier']})"
+        elif act_type == ACTION_OVERRIDE:
+            clin_state_html = f"⚠️ Override Active ({latest_p_action['clinician_selected_tier']})<br/><small style='font-size:11px; font-weight:normal;'>Reason: {latest_p_action['override_reason']}</small>"
+        elif act_type == ACTION_ESCALATE:
+            clin_state_html = f"⚡ Escalated ({latest_p_action['clinician_selected_tier']})"
         else:
-            st.write("**Current Clinician State:** _No override (system recommendation active)_")
+            clin_state_html = "—"
+    else:
+        clin_state_html = "<i>System recommendation active</i>"
+
+    split_card_html = f"""
+    <div class="decision-split-custom mb-16">
+        <div class="sys-panel">
+            <div class="panel-label">System Recommendation</div>
+            <div class="panel-value">{patient_ranked['queue_tier']}</div>
+            <div style="font-size:11px; color:var(--muted); margin-top:4px;">Score: <b>{patient_ranked['sequence_score']} / 100</b></div>
+        </div>
+        <div class="clinician-panel">
+            <div class="panel-label">Your Decision State</div>
+            <div class="panel-value">{clin_state_html}</div>
+        </div>
+    </div>
+    """
+    st.markdown(split_card_html, unsafe_allow_html=True)
 
     action_btn_col1, action_btn_col2, action_btn_col3 = st.columns([1, 1, 2])
 
@@ -828,24 +1053,46 @@ with tab_ops:
     if events:
         audit_rows = []
         for e in reversed(events):  # Newest first in display
-            audit_rows.append({
-                "Timestamp": e["timestamp"],
-                "Event ID": e["event_id"][:8] + "...",
-                "User": e["user_role"],
-                "Patient": e["patient_token"],
-                "Mode": e["operational_mode"],
-                "Action": e["action"],
-                "System Tier": e["system_queue_tier"],
-                "Clinician Tier": e["clinician_selected_tier"],
-                "Sequence Score": e["system_sequence_score"],
-                "Override Reason": e["override_reason"] or "—",
-                "Model Version": e["model_version"],
-                "Rule Version": e["rule_version"]
-            })
-        st.dataframe(
-            pd.DataFrame(audit_rows),
-            use_container_width=True,
-            hide_index=True
+            audit_rows.append(
+                f"""
+                <tr>
+                    <td>{e['timestamp']}</td>
+                    <td class="pid">{e['patient_token']}</td>
+                    <td><b>{e['action']}</b></td>
+                    <td>{e['system_queue_tier']}</td>
+                    <td>{e['clinician_selected_tier'] or '—'}</td>
+                    <td class="num">{e['system_sequence_score']}</td>
+                    <td>{e['override_reason'] or '—'}</td>
+                    <td><code class="mono-custom">{e['model_version']}</code></td>
+                    <td><code class="mono-custom">{e['rule_version']}</code></td>
+                </tr>
+                """
+            )
+        
+        st.markdown(
+            f"""
+            <div class="tbl-wrap mb-16">
+                <table class="tbl">
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>Patient</th>
+                            <th>Action</th>
+                            <th>Sys Tier</th>
+                            <th>Clin Tier</th>
+                            <th class="th-num">Score</th>
+                            <th>Override Reason</th>
+                            <th>Model</th>
+                            <th>Rules</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {"".join(audit_rows)}
+                    </tbody>
+                </table>
+            </div>
+            """,
+            unsafe_allow_html=True
         )
 
         with st.expander("🔍 Inspect Full Audit Event Payloads", expanded=False):
@@ -853,7 +1100,14 @@ with tab_ops:
                 st.markdown(f"**Event #{event_count - i + 1} — {e['patient_token']} ({e['action']}) at {e['timestamp']}**")
                 st.json(e)
     else:
-        st.info("No clinician actions logged in this session yet. Use the Patient Inspector to accept, escalate, or override recommendations.")
+        st.markdown(
+            """
+            <div class="alert info mb-16">
+                <span>No clinician actions logged in this session yet. Use the Patient Inspector to accept, escalate, or override recommendations.</span>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
     # ---------------------------------------------------------
     # Tab 2: Privacy, Safety & Governance Specification (Milestone 8)

@@ -5,3 +5,5 @@ __pycache__/
 venv/
 .streamlit/
 project.zip
+project*.zip
+project*/
