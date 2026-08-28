@@ -1,26 +1,20 @@
-<p align="center">
-  <img src="web/assets/lisa-app-icon.png" alt="LISA.ai" width="96" height="96" />
-</p>
+<img src="web/assets/lisa-app-icon.png" width="90" alt="LISA.ai">
 
 # LISA.ai
 
 **Right Patient. Right Bed. Right Time.**
 
-LISA.ai is a clinician-controlled Emergency Department sequencing decision-support prototype focused on Risk-of-Wait and scarce resource allocation.
+Clinician-controlled Emergency Department sequencing and Risk-of-Wait decision-support prototype.
 
 > **Prototype simulation only — not for clinical use.**
 
-- **Live Demo:** [https://lisa-ai-7dtj.onrender.com/](https://lisa-ai-7dtj.onrender.com/)
-- **Frozen Release:** `v1.0.0-prototype`
+**[Live Demo](https://lisa-ai-7dtj.onrender.com/)** · **Release: `v1.0.0-prototype`**
 
 *The application source for this release is frozen. Documentation may continue to improve without changing the frozen clinical/operational logic.*
 
 ---
 
-## 🖥️ Workstation Overview
-
-![LISA.ai Nurse Command Center — Normal Mode](docs/final_brand_command.png)
-*LISA.ai Nurse Command Center — Normal Mode*
+![LISA.ai Nurse Command Center](docs/final_brand_command.png)
 
 ---
 
