@@ -7,7 +7,7 @@
 LISA.ai is a clinician-controlled Emergency Department sequencing prototype that prioritizes patients based on Risk-of-Wait and limited simulated ED capacity.
 
 - **Live Demo:** [https://lisa-ai-7dtj.onrender.com/](https://lisa-ai-7dtj.onrender.com/)
-- **Demo Video:** [PLACEHOLDER — ADD SUBMISSION VIDEO LINK]
+- **Demo Video:** [[PLACEHOLDER — ADD SUBMISSION VIDEO LINK]](https://drive.google.com/file/d/1UEWLVu49-qT43U9LuL55V00FyKDNRmjW/view?usp=drive_link)
 
 > **Prototype simulation only — not for clinical use.**
 
